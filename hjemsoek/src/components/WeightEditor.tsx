@@ -1,5 +1,6 @@
 import React from 'react';
 import { buildWeightConfiguration } from '../utils/weights';
+import { WEIGHT_TEMPLATES, getTemplateById } from '../scoringTemplates';
 import type {
   ModuleWeights,
   CapacitySubweight,
@@ -91,12 +92,17 @@ const MODULE_LABEL_NB: Record<string,string> = {
 
 // Fallback render helper
 function labelForSub(id: string): string {
-  return SUB_EXPLANATION_NB.capacity[id as any]
-    || SUB_EXPLANATION_NB.workOpportunity?.[id as any]
-    || SUB_EXPLANATION_NB.connection?.[id as any]
-    || SUB_EXPLANATION_NB.healthcare?.[id as any]
-    || SUB_EXPLANATION_NB.education?.[id as any]
-    || id;
+  const categories: Array<Record<string,string>> = [
+    SUB_EXPLANATION_NB.capacity,
+    SUB_EXPLANATION_NB.workOpportunity,
+    SUB_EXPLANATION_NB.connection,
+    SUB_EXPLANATION_NB.healthcare,
+    SUB_EXPLANATION_NB.education,
+  ];
+  for (const cat of categories) {
+    if (cat && Object.prototype.hasOwnProperty.call(cat, id)) return cat[id];
+  }
+  return id;
 }
 
 // -------------------- Component --------------------
@@ -111,6 +117,8 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
   const [helpOpenModule, setHelpOpenModule] = React.useState<string | null>(null);
   // Tooltip for module description
   const [tooltipOpenModule, setTooltipOpenModule] = React.useState<string | null>(null);
+  // Template selection
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState<string>('');
   React.useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as HTMLElement;
@@ -128,13 +136,18 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
   const [lockedSubs, setLockedSubs] = React.useState<Record<string, Record<string, boolean>>>({});
 
   // --------- Auto-normalize subweight groups (only when provided) ---------
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => { normalizeIfNeeded('capacity', props.capacitySubweights, props.onCapacitySubweightsChange); }, [props.capacitySubweights]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => { normalizeIfNeeded('workOpportunity', props.workSubweights, props.onWorkSubweightsChange); }, [props.workSubweights]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => { normalizeIfNeeded('connection', props.connectionSubweights, props.onConnectionSubweightsChange); }, [props.connectionSubweights]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => { normalizeIfNeeded('healthcare', props.healthcareSubweights, props.onHealthcareSubweightsChange); }, [props.healthcareSubweights]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => { normalizeIfNeeded('education', props.educationSubweights, props.onEducationSubweightsChange); }, [props.educationSubweights]);
 
-  function normalizeIfNeeded(_moduleKey: string, list: { id: string; weight: number }[] | undefined, onChange?: (n: any[]) => void) {
+  function normalizeIfNeeded<T extends { id: string; weight: number }>(_moduleKey: string, list: T[] | undefined, onChange?: (n: T[]) => void) {
     if (!list || !list.length || !onChange) return;
     // Sum current integer weights
     const sum = list.reduce((a,b)=>a+(b.weight||0),0);
@@ -156,11 +169,11 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
       if (!count) return;
       const base = Math.floor(100 / count);
       let remainder = 100 - base * count;
-      const next: ModuleWeights = {};
+      const next: ModuleWeights = {} as ModuleWeights;
       for (const k of TOP_MODULE_KEYS) {
         let v = base;
         if (remainder > 0) { v += 1; remainder -= 1; }
-        (next as any)[k] = v;
+        (next as Record<string, number | undefined>)[k] = v;
       }
       onModuleWeightsChange(next);
     }
@@ -190,7 +203,7 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
       onModuleWeightsChange(current); return;
     }
     // Remaining budget after active + locked others
-    let remaining = 100 - targetValue - sumLockedOthers;
+  const remaining = 100 - targetValue - sumLockedOthers; // mutable remainder distribution
     // Even distribution across adjustable peers
     const base = Math.floor(remaining / adjustable.length);
     let remainder = remaining - base * adjustable.length;
@@ -204,7 +217,7 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
     }
     orderedPeers.forEach(k => { current[k] = base + (remainder > 0 ? 1 : 0); if (remainder > 0) remainder--; });
     // Final safety normalization
-  let total = TOP_MODULE_KEYS.reduce((acc: number, k) => acc + (current[k] || 0), 0);
+  const total = TOP_MODULE_KEYS.reduce((acc: number, k) => acc + (current[k] || 0), 0);
     if (total !== 100) {
       let diff = 100 - total;
       let i = 0;
@@ -266,7 +279,7 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
     orderedPeers.forEach(sw => { sw.weight = base + (remainder > 0 ? 1 : 0); if (remainder > 0) remainder--; });
 
     // Safety final normalization
-    let total = current.reduce((a,b)=>a+b.weight,0);
+  const total = current.reduce((a,b)=>a+b.weight,0);
     if (total !== 100) {
       let diff = 100 - total;
       const pool = orderedPeers.length ? orderedPeers : current.filter((_,i)=>i!==idx);
@@ -292,9 +305,80 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
     const base = Math.floor(100 / count);
     let remainder = 100 - base*count;
     const next: ModuleWeights = {};
-    for (const k of TOP_MODULE_KEYS) { let v = base; if (remainder>0){v++; remainder--; } (next as any)[k]=v; }
+  for (const k of TOP_MODULE_KEYS) { let v = base; if (remainder>0){v++; remainder--; } (next as Record<string, number | undefined>)[k]=v; }
     onModuleWeightsChange(next);
     setLockedTop({});
+  }
+
+  // --------- Templates ---------
+  function applyTemplate(id: string) {
+    const tpl = getTemplateById(id);
+    if (!tpl) return;
+    // Apply top-level weights & subweights
+    props.onModuleWeightsChange?.(tpl.moduleWeights);
+    props.onCapacitySubweightsChange?.(tpl.capacitySubweights.map(x => ({ ...x })));
+    props.onWorkSubweightsChange?.(tpl.workSubweights.map(x => ({ ...x })));
+    props.onConnectionSubweightsChange?.(tpl.connectionSubweights.map(x => ({ ...x })));
+    props.onHealthcareSubweightsChange?.(tpl.healthcareSubweights.map(x => ({ ...x })));
+    props.onEducationSubweightsChange?.(tpl.educationSubweights.map(x => ({ ...x })));
+    props.onCapacityOptionsChange?.({ ...tpl.capacityOptions });
+    // Clear locks & UI expansions
+    setLockedTop({});
+    setLockedSubs({});
+    setTableOpenModule(null);
+    setHelpOpenModule(null);
+  }
+
+  function handleTemplateChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const id = e.target.value;
+    setSelectedTemplateId(id);
+    if (id) applyTemplate(id);
+  }
+
+  function resetToBaseline() {
+    // Baseline = even distribution across modules + even subweights + default capacity options
+    const count = TOP_MODULE_KEYS.length;
+    if (count) {
+      const base = Math.floor(100 / count);
+      let remainder = 100 - base * count;
+      const next: ModuleWeights = {};
+      for (const k of TOP_MODULE_KEYS) {
+        let v = base; if (remainder > 0) { v++; remainder--; }
+        (next as Record<string, number | undefined>)[k] = v;
+      }
+      props.onModuleWeightsChange?.(next);
+    }
+    // Subweights even splits
+    props.onCapacitySubweightsChange?.([{ id: 'capacity.core', weight: 100 }]);
+    props.onWorkSubweightsChange?.([
+      { id: 'work.chance', weight: 50 },
+      { id: 'work.growth', weight: 50 },
+    ]);
+    props.onConnectionSubweightsChange?.([
+      { id: 'connection.friend', weight: 20 },
+      { id: 'connection.close_family', weight: 20 },
+      { id: 'connection.relative', weight: 20 },
+      { id: 'connection.workplace', weight: 20 },
+      { id: 'connection.school_place', weight: 20 },
+    ]);
+    props.onHealthcareSubweightsChange?.([
+      { id: 'healthcare.hospital', weight: 50 },
+      { id: 'healthcare.specialist', weight: 50 },
+    ]);
+    props.onEducationSubweightsChange?.([
+      { id: 'education.primary_school', weight: 25 },
+      { id: 'education.high_school', weight: 25 },
+      { id: 'education.university', weight: 25 },
+      { id: 'education.adult_language', weight: 25 },
+    ]);
+    // Baseline capacity options (allow_overflow=false per latest requirement, include_tentative=true retained)
+    props.onCapacityOptionsChange?.({ include_tentative: true, allow_overflow: false });
+    // Clear locks & selections
+    setLockedTop({});
+    setLockedSubs({});
+    setTableOpenModule(null);
+    setHelpOpenModule(null);
+    setSelectedTemplateId('');
   }
 
   function resetSubs(moduleKey: string) {
@@ -310,13 +394,15 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
   }
 
   // Utility to fetch subweight collection generically
-  function getSubweightCollection(moduleKey: string): { list?: { id: string; weight: number }[], onChange?: (n: any[]) => void } {
+  function getSubweightCollection(moduleKey: string): { list?: { id: string; weight: number }[], onChange?: (n: { id: string; weight: number }[]) => void } {
     switch (moduleKey) {
-      case 'capacity': return { list: props.capacitySubweights, onChange: props.onCapacitySubweightsChange }; 
-      case 'workOpportunity': return { list: props.workSubweights, onChange: props.onWorkSubweightsChange }; 
-      case 'connection': return { list: props.connectionSubweights, onChange: props.onConnectionSubweightsChange }; 
-      case 'healthcare': return { list: props.healthcareSubweights, onChange: props.onHealthcareSubweightsChange }; 
-      case 'education': return { list: props.educationSubweights, onChange: props.onEducationSubweightsChange }; 
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  case 'capacity': return { list: props.capacitySubweights, onChange: props.onCapacitySubweightsChange ? (n) => props.onCapacitySubweightsChange!(n as any) : undefined }; 
+  case 'workOpportunity': return { list: props.workSubweights, onChange: props.onWorkSubweightsChange ? (n) => props.onWorkSubweightsChange!(n as any) : undefined }; 
+  case 'connection': return { list: props.connectionSubweights, onChange: props.onConnectionSubweightsChange ? (n) => props.onConnectionSubweightsChange!(n as any) : undefined }; 
+  case 'healthcare': return { list: props.healthcareSubweights, onChange: props.onHealthcareSubweightsChange ? (n) => props.onHealthcareSubweightsChange!(n as any) : undefined }; 
+  case 'education': return { list: props.educationSubweights, onChange: props.onEducationSubweightsChange ? (n) => props.onEducationSubweightsChange!(n as any) : undefined }; 
+  /* eslint-enable @typescript-eslint/no-explicit-any */
     }
     return {};
   }
@@ -344,7 +430,7 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
   const { list } = getSubweightCollection(moduleKey);
   const lockMap = lockedSubs[moduleKey] || {};
     if (!list || !list.length) return <p className="text-xs text-gray-400 italic">Ingen undervekter konfigurert.</p>;
-    const parentDisabled = (moduleWeights as any)[moduleKey] === 0;
+  const parentDisabled = (moduleWeights as Record<string, number | undefined>)[moduleKey] === 0;
     return (
       <div className="space-y-2">
         <div className="flex justify-between items-center">
@@ -390,9 +476,29 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
       <div className="flex flex-col md:flex-row w-full">
         {/* Main table */}
         <div className="overflow-x-auto rounded-xl shadow ring-1 ring-blue-200 bg-white transition-all duration-300 flex-1 md:mr-4">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-blue-100 bg-blue-50 rounded-t-xl gap-2">
-            <h2 className="font-semibold text-blue-900 text-sm">Modul-vekter</h2>
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between px-4 py-2 border-b border-blue-100 bg-blue-50 rounded-t-xl gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="font-semibold text-blue-900 text-sm">Modul-vekter</h2>
+              <div className="flex items-center gap-2" title="Forhåndsdefinert vektmal">
+                <label className="text-[11px] text-blue-900 font-medium hidden sm:inline" htmlFor="weight-template-select">Mal:</label>
+                <select
+                  id="weight-template-select"
+                  value={selectedTemplateId}
+                  onChange={handleTemplateChange}
+                  className="text-[11px] px-2 py-1 rounded border border-blue-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                  <option value="">Velg mal…</option>
+                  {WEIGHT_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={resetToBaseline}
+                  className="text-[11px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                  title="Tilbakestill til grunnoppsett (jevn fordeling)"
+                >Reset</button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 md:justify-end">
               <button
                 onClick={() => { setShowHelp(h => { const next = !h; if (next) setShowJson(false); return next; }); }}
                 className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white shadow focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
@@ -543,7 +649,7 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
             <div className="h-full rounded-xl shadow ring-1 ring-gray-200 bg-white flex flex-col overflow-hidden">
               <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50">
                 <h2 className="font-semibold text-gray-700 text-sm">{showHelp ? 'Forklaringer (ELI5)' : 'Vektkonfig JSON'}</h2>
-                <button onClick={() => { showHelp ? setShowHelp(false) : setShowJson(false); }} className="hidden md:inline-flex text-gray-500 hover:text-gray-700 text-xs">Lukk</button>
+                <button onClick={() => { if (showHelp) { setShowHelp(false); } else { setShowJson(false); } }} className="hidden md:inline-flex text-gray-500 hover:text-gray-700 text-xs">Lukk</button>
               </div>
               {showHelp && (
                 <div className="flex-1 overflow-auto p-3 text-[12px] leading-snug space-y-4">

@@ -313,6 +313,22 @@ Brukseksempel (allerede i `App.tsx`):
 
 Hvis gruppen er tom vises en hjelpetekst i stedet for tabell.
 
+## Forhåndsdefinerte vektmaler (Scoring Templates)
+
+I `WeightEditor` finnes nå en nedtrekksliste med tre forhåndsdefinerte maler (se `src/scoringTemplates.ts`):
+
+* Normal bosetting – Balansert, litt ekstra vekt på kapasitet og arbeid.
+* Enslige mindreårige – Høy vekt på utdanning, helse og tilknytning (familie / relasjoner). Kapasitet lav, arbeid svært lav.
+* Helsefokus – Helse dominerer, moderat arbeid + tilknytning.
+
+Valgt mal setter:
+
+* Modulvekter (summerer 100)
+* Alle undervekter (summerer 100 innen hver modul)
+* Kapasitetsopsjoner (include_tentative / allow_overflow)
+
+"Reset" knappen ved siden av dropdown gjenoppretter "Normal bosetting".
+
  
 ## License
 
