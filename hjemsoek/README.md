@@ -1,3 +1,44 @@
+# HjemSoek
+
+## Run Locally (Quick Start)
+
+Prerequisites:
+
+* Node.js 18+ (Node 20 LTS recommended; required by Vite 7 / Tailwind v4 / React 19)
+* npm (bundled with Node) or another Node package manager (instructions below assume npm)
+* Project source code (clone with Git OR download ZIP from GitHub and extract)
+
+Optional tooling:
+
+* Git (for easier updates; not required if you downloaded a ZIP)
+* VS Code (TypeScript + ESLint extensions)
+* Corepack enabled (if you prefer pnpm / yarn: `corepack enable`)
+
+Steps (PowerShell examples for Windows; macOS/Linux the same). If you downloaded a ZIP, start at the `cd` step after extracting:
+
+```powershell
+git clone <repo-url>   # skip if you downloaded ZIP
+cd HjemSoek/hjemsoek   # adjust path if extracted manually
+npm install            # install dependencies
+npm run dev            # start Vite dev server (default: http://localhost:5173)
+```
+
+Open the shown local URL (usually <http://localhost:5173>). The dev server live‑reloads on save.
+
+Common tasks:
+
+```powershell
+npm test               # run vitest unit tests
+npm run build          # type-check (tsc -b) + production build to dist/
+npx vite preview       # (after build) serve production build locally
+npx tsc --noEmit       # on-demand strict type checking
+npx eslint .           # optional lint (no script defined)
+```
+
+No environment variables are required; the app is fully client-side with mock / local data.
+
+If you hit an ESM / module resolution error, ensure you are on Node >=18 and that `npm install` completed without errors.
+
 ## Overview
 
 This project is a React + TypeScript + Vite app that embeds a pure scoring core. The scoring logic is framework-agnostic and lives under `src/categories/`. Each module returns a structured result extending `BaseModuleResult` (see `src/types.ts`). Modules can be combined via `aggregateOverall` with automatic weight normalization and confidence-aware max potential.
