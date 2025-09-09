@@ -72,15 +72,23 @@ interface RowData {
 // Dedicated type for table sort keys
 type TableSortKey = 'overall' | 'name' | 'capacity' | 'workOpportunity' | 'connection' | 'healthcare' | 'education';
 
-// Map 0-100 score into 0.5 increments up to 5 stars.
+// Map 0-100 score into 0.5–5 stars with linear 10% buckets.
+// Buckets:
+// 0-9.99  -> 0.5
+// 10-19.99-> 1.0
+// 20-29.99-> 1.5
+// 30-39.99-> 2.0
+// 40-49.99-> 2.5
+// 50-59.99-> 3.0
+// 60-69.99-> 3.5
+// 70-79.99-> 4.0
+// 80-89.99-> 4.5
+// 90-100  -> 5.0
+// (Confidence / max_possible ignored; scale is absolute.)
 function starsForScore(score: number): number {
   const s = Math.max(0, Math.min(100, score));
-  if (s < 5) return 0.5; // 0-5
-  if (s >= 95) return 5; // 95-100
-  // Every 5% adds a half-star: 5-10 =>1, 10-15=>1.5 ...
-  const remaining = s - 5; // now 0..90
-  const halfSteps = Math.floor(remaining / 5) + 1; // +1 accounts for first full star at >=5
-  return Math.min(5, 1 + halfSteps * 0.5 - 0.5); // adjust formula to produce sequence 1,1.5,2,...4.5
+  const bucket = Math.min(9, Math.floor(s / 10)); // 0..9
+  return 0.5 + 0.5 * bucket; // 0.5 .. 5.0
 }
 
 const StarRating: React.FC<{ value: number }> = ({ value }) => {
