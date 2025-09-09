@@ -500,7 +500,7 @@ export interface EducationResult extends BaseModuleResult {
  */
 export interface WeightConfiguration {
   /** Raw top-level module weights (integers summing 100). */
-  modules: Required<Pick<ModuleWeights,'capacity'|'workOpportunity'|'connection'|'education'>>;
+  modules: Required<Pick<ModuleWeights,'capacity'|'workOpportunity'|'connection'|'healthcare'|'education'>>;
   /** Normalized top-level module weights (Σ=1). */
   modules_normalized: Record<string, number>;
   /** Optional subweight groups keyed by module. */

@@ -119,6 +119,20 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
   const [tooltipOpenModule, setTooltipOpenModule] = React.useState<string | null>(null);
   // Template selection
   const [selectedTemplateId, setSelectedTemplateId] = React.useState<string>('');
+  // Measure left (table) height to sync side panel height so long JSON doesn't stretch page
+  const leftPanelRef = React.useRef<HTMLDivElement | null>(null);
+  const [leftHeight, setLeftHeight] = React.useState<number>(0);
+  React.useLayoutEffect(() => {
+    if (!leftPanelRef.current) return;
+    const el = leftPanelRef.current;
+    const update = () => setLeftHeight(el.clientHeight);
+    update();
+    const RO: typeof ResizeObserver | undefined = typeof ResizeObserver !== 'undefined' ? ResizeObserver : undefined;
+    const ro = RO ? new RO(() => update()) : undefined;
+    if (ro) ro.observe(el);
+    window.addEventListener('resize', update);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', update); };
+  }, []);
   React.useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as HTMLElement;
@@ -475,7 +489,7 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
     <div className="w-full">
       <div className="flex flex-col md:flex-row w-full">
         {/* Main table */}
-        <div className="overflow-x-auto rounded-xl shadow ring-1 ring-blue-200 bg-white transition-all duration-300 flex-1 md:mr-4">
+  <div ref={leftPanelRef} className="overflow-x-auto rounded-xl shadow ring-1 ring-blue-200 bg-white transition-all duration-300 flex-1 md:mr-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between px-4 py-2 border-b border-blue-100 bg-blue-50 rounded-t-xl gap-2">
             <div className="flex items-center gap-3 flex-wrap">
               <h2 className="font-semibold text-blue-900 text-sm">Modul-vekter</h2>
@@ -644,7 +658,10 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
           </div>
         </div>
         {/* Side panel: Help OR JSON */}
-        <div className={`transition-all duration-300 ease-in-out overflow-hidden ${(showHelp||showJson) ? 'md:w-96 opacity-100 translate-x-0' : 'md:w-0 w-0 opacity-0 pointer-events-none'}`}>
+        <div
+          className={`transition-all duration-300 ease-in-out overflow-hidden ${(showHelp||showJson) ? 'md:w-96 opacity-100 translate-x-0' : 'md:w-0 w-0 opacity-0 pointer-events-none'}`}
+          style={leftHeight ? { height: leftHeight } : undefined}
+        >
           {(showHelp || showJson) && (
             <div className="h-full rounded-xl shadow ring-1 ring-gray-200 bg-white flex flex-col overflow-hidden">
               <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50">
@@ -689,8 +706,8 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
                 });
                 const json = JSON.stringify(cfg, null, 2);
                 return (
-                  <div className="flex-1 overflow-auto p-3">
-                    <pre className="text-[11px] leading-snug whitespace-pre-wrap break-words bg-gray-900 text-green-200 p-2 rounded-md shadow-inner max-h-full">
+                  <div className="flex-1 p-3 flex flex-col min-h-0">
+                    <pre className="text-[11px] leading-snug whitespace-pre-wrap break-words bg-gray-900 text-green-200 p-2 rounded-md shadow-inner flex-1 overflow-auto">
 {json}
                     </pre>
                     <div className="mt-2 flex justify-end">

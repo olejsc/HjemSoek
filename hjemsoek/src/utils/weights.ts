@@ -28,10 +28,11 @@ export interface BuildWeightConfigArgs {
 /** Build a full WeightConfiguration object from current UI state. */
 export function buildWeightConfiguration(args: BuildWeightConfigArgs): WeightConfiguration {
   const { moduleWeights, capacitySubweights, workSubweights, connectionSubweights, healthcareSubweights, educationSubweights } = args;
-  const modules: any = {
+  const modules: { capacity: number; workOpportunity: number; connection: number; healthcare: number; education: number } = {
     capacity: moduleWeights.capacity ?? 0,
     workOpportunity: moduleWeights.workOpportunity ?? 0,
     connection: moduleWeights.connection ?? 0,
+    healthcare: moduleWeights.healthcare ?? 0,
     education: moduleWeights.education ?? 0,
   };
   const modules_normalized = normalizeModules(modules);
