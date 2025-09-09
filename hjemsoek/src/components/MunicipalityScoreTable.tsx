@@ -34,6 +34,20 @@ const SCORE_COLORS = [
   '#059669', // strong green
 ];
 
+// Norsk navn per yrke (fallback til engelsk nøkkel hvis ikke definert)
+const PROFESSION_NB: Record<string,string> = {
+  teacher: 'Lærer',
+  nurse: 'Sykepleier',
+  engineer: 'Ingeniør',
+  developer: 'Utvikler',
+  farmer: 'Bonde',
+  driver: 'Sjåfør',
+  carpenter: 'Tømrer',
+  electrician: 'Elektriker',
+  chef: 'Kokk',
+  sales: 'Selger'
+};
+
 function colorForScore(score: number) {
   if (!isFinite(score)) return '#ddd';
   const clamped = Math.max(0, Math.min(100, score));
@@ -341,7 +355,8 @@ const ModalContent: React.FC<{ inspect: RowData; group: Group; activeModules: st
 
   const m = inspect.municipality;
   const free = Math.max(0, m.capacity_total - m.settled_current);
-  const growthCount = Object.keys(m.work_opportunity?.profession_growth || {}).length;
+  const professionsInMunicipality = Object.keys(m.work_opportunity?.profession_history || {});
+  const professionsCount = professionsInMunicipality.length;
   const specialistCount = m.specialist_facilities?.length || 0;
 
   // Build combined per-person dataset
@@ -366,9 +381,9 @@ const ModalContent: React.FC<{ inspect: RowData; group: Group; activeModules: st
         <InfoBox label="Ledig kapasitet" value={free} />
         {m.tentative_claim != null && <InfoBox label="Tentativt krav" value={m.tentative_claim} />}
         <InfoBox label="Arbeidsledighet" value={m.work_opportunity?.unemployment_rate != null ? m.work_opportunity.unemployment_rate + '%' : '—'} />
-        <InfoBox label="Yrker med vekstdata" value={growthCount} />
+  <InfoBox label="Yrker i kommunen" value={professionsCount} items={professionsInMunicipality.map(p=>PROFESSION_NB[p]||p)} />
         <InfoBox label="Sykehus" value={m.has_hospital ? 'Ja' : 'Nei'} />
-        <InfoBox label="Spesialist tilbud" value={specialistCount > 0 ? specialistCount : 'Ingen'} tooltip={m.specialist_facilities?.join(', ')} />
+  <InfoBox label="Spesialist tilbud" value={specialistCount > 0 ? specialistCount : 'Ingen'} tooltip={m.specialist_facilities?.join(', ')} items={m.specialist_facilities} />
         <InfoBox label="Grunnskole" value={m.has_primary_school ? 'Ja' : 'Nei'} />
         <InfoBox label="Videregående" value={m.has_high_school ? 'Ja' : 'Nei'} />
         <InfoBox label="Universitet" value={m.has_university ? 'Ja' : 'Nei'} />
@@ -376,8 +391,10 @@ const ModalContent: React.FC<{ inspect: RowData; group: Group; activeModules: st
         <InfoBox label="Gruppestørrelse" value={group.persons.length} />
         <InfoBox label="Total score" value={inspect.overall.toFixed(1) + '%'} />
       </section>
+      {/* Module detail groups (arbeidstabell flyttet over sammendrag) */}
+      <ModuleDetailGroups inspect={inspect} activeModules={activeModules} />
 
-      {/* Expandable group summary */}
+      {/* Expandable group summary (overall weights & raw module outputs) */}
       <section className="border rounded-md">
         <button onClick={() => setShowSummary(s => !s)} className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 text-left">
           <span className="font-semibold text-gray-700 text-xs">Gruppesammendrag</span>
@@ -437,6 +454,8 @@ const ModalContent: React.FC<{ inspect: RowData; group: Group; activeModules: st
           </div>
         )}
       </section>
+
+  {/* (Arbeidstabell allerede vist over sammendrag) */}
 
       {/* Per-person breakdown */}
       <section>
@@ -522,9 +541,194 @@ const ModalContent: React.FC<{ inspect: RowData; group: Group; activeModules: st
   );
 };
 
-const InfoBox: React.FC<{ label: string; value: React.ReactNode; tooltip?: string }> = ({ label, value, tooltip }) => (
-  <div className="border rounded p-2 bg-white flex flex-col gap-0.5" title={tooltip || ''}>
-    <span className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">{label}</span>
-    <span className="text-xs text-gray-800 font-medium">{value}</span>
-  </div>
-);
+// ------------- Colored grouped module details -------------
+const MODULE_STYLE: Record<string,{accent:string; bg:string; text:string}> = {
+  capacity: { accent: 'border-l-4 border-blue-500', bg: 'bg-blue-50', text: 'text-blue-700' },
+  workOpportunity: { accent: 'border-l-4 border-amber-500', bg: 'bg-amber-50', text: 'text-amber-700' },
+  connection: { accent: 'border-l-4 border-indigo-500', bg: 'bg-indigo-50', text: 'text-indigo-700' },
+  healthcare: { accent: 'border-l-4 border-rose-500', bg: 'bg-rose-50', text: 'text-rose-700' },
+  education: { accent: 'border-l-4 border-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+};
+
+// Narrow subset used; accept broader shape for compatibility
+interface InspectLike {
+  municipality: Municipality;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  workRes?: any; // accessing only workRes.trace.inputs.normalization_thresholds if present
+}
+const ModuleDetailGroups: React.FC<{ inspect: InspectLike; activeModules: string[] }> = ({ inspect, activeModules }) => {
+  const [open, setOpen] = React.useState<Record<string, boolean>>({ workOpportunity: true });
+  const m: Municipality = inspect.municipality;
+  const workHist = m.work_opportunity?.profession_history;
+  const professions = workHist ? Object.keys(workHist) : [];
+
+  function toggle(key: string) { setOpen(o => ({ ...o, [key]: !o[key] })); }
+
+  return (
+    <section className="space-y-3">
+      {activeModules.includes('workOpportunity') && (
+        <div className={`rounded shadow-sm border ${MODULE_STYLE.workOpportunity.accent} overflow-hidden`}>
+          <button onClick={() => toggle('workOpportunity')} className={`w-full flex items-center justify-between px-3 py-2 ${MODULE_STYLE.workOpportunity.bg} ${MODULE_STYLE.workOpportunity.text} font-semibold text-[11px]`}>Arbeid (yrker & vekst){' '}<span className="text-[10px]">{open.workOpportunity ? '▼' : '►'}</span></button>
+          {open.workOpportunity && (
+            <div className="p-3 bg-white text-[11px] space-y-3">
+              <div className="flex flex-wrap gap-2 items-center">
+                <Badge label={`Arbeidsledighet: ${m.work_opportunity?.unemployment_rate ?? '—'}%`} color="amber" />
+                <Badge label={`Yrker med historikk: ${professions.length}`} color="amber" />
+              </div>
+              {professions.length > 0 ? (
+                <div className="overflow-x-auto max-w-[520px]">
+                  <table className="text-[10px] w-full table-fixed">
+                    <thead>
+                      <tr className="bg-amber-50 text-left">
+                        <th className="px-1 py-0.5 w-[90px]">Yrke</th>
+                        <th className="px-1 py-0.5 w-[52px]" title="Antall ansatte for 5 år siden (rå)">Ansatte₀</th>
+                        <th className="px-1 py-0.5 w-[52px]" title="Antall ansatte nå">Ansatte₁</th>
+                        <th className="px-1 py-0.5 w-[45px]" title="Endring i antall (Ansatte₁ − justert base)">Δ antall</th>
+                        <th className="px-1 py-0.5 w-[55px]" title="Prosentvekst ((Ansatte₁−base)/base*100)">Vekst%</th>
+                        <th className="px-1 py-0.5 w-[60px]" title="Endring i andel av arbeidsstyrke (prosentpoeng)">Δ andel pp</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {professions.map(p => {
+                        const h = workHist![p];
+                        const P0_raw = h.number_of_employees_in_profession_5_years_ago ?? 0;
+                        const P0_eff = P0_raw === 0 ? 1 : P0_raw;
+                        const P1 = h.number_of_employees_in_profession_now ?? 0;
+                        const deltaN = P1 - P0_eff;
+                        const pct = P0_eff === 0 ? 0 : ((P1 - P0_eff)/P0_eff)*100;
+                        const share0 = h.percentage_of_municipality_workforce_5_years_ago ?? 0;
+                        const share1 = h.percentage_of_municipality_workforce_now ?? 0;
+                        const dShare = share1 - share0;
+                        const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+                        const pctColor = pct > 20 ? 'text-green-600' : pct > 0 ? 'text-green-500' : pct < 0 ? 'text-red-600' : 'text-gray-600';
+                        return (
+                          <tr key={p} className="hover:bg-amber-50/60">
+                            <td className="px-1 py-0.5 font-medium text-gray-800" title={p}>{PROFESSION_NB[p] || p}</td>
+                            <td className="px-1 py-0.5">{P0_raw}</td>
+                            <td className="px-1 py-0.5">{P1}</td>
+                            <td className="px-1 py-0.5">{deltaN}</td>
+                            <td className={`px-1 py-0.5 ${pctColor}`}>{pctStr}</td>
+                            <td className="px-1 py-0.5">{dShare > 0 ? '+'+dShare.toFixed(2)+'pp' : dShare.toFixed(2)+'pp'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-gray-500 text-[10px]">Ingen historikk for yrker.</div>
+              )}
+              {/* Thresholds if available */}
+              {inspect.workRes?.trace?.inputs?.normalization_thresholds && (
+                <div className="text-[10px] bg-amber-50 border border-amber-200 rounded p-2 leading-snug">
+                  <div className="font-semibold mb-1">Terskler (median + MAD)</div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(inspect.workRes.trace.inputs.normalization_thresholds).map(([k,v]) => {
+                      const display = typeof v === 'number' ? v.toFixed(2) : String(v);
+                      return (<span key={k} className="px-1.5 py-0.5 bg-amber-100 rounded text-amber-800">{k}: {display}</span>);
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {activeModules.includes('healthcare') && (
+        <div className={`rounded shadow-sm border ${MODULE_STYLE.healthcare.accent} overflow-hidden`}>/* Healthcare */
+          <button onClick={() => toggle('healthcare')} className={`w-full flex items-center justify-between px-3 py-2 ${MODULE_STYLE.healthcare.bg} ${MODULE_STYLE.healthcare.text} font-semibold text-[11px]`}>Helse (spesialister){' '}<span className="text-[10px]">{open.healthcare ? '▼' : '►'}</span></button>
+          {open.healthcare && (
+            <div className="p-3 bg-white text-[11px] space-y-3">
+              <div className="flex flex-wrap gap-2 items-center">
+                <Badge label={`Sykehus: ${m.has_hospital ? 'Ja' : 'Nei'}`} color={m.has_hospital ? 'green' : 'rose'} />
+                <Badge label={`Antall spesialist typer: ${m.specialist_facilities?.length || 0}`} color="rose" />
+              </div>
+              {m.specialist_facilities?.length ? (
+                <ul className="list-disc ml-4 text-[10px] space-y-0.5">
+                  {m.specialist_facilities.map(s => <li key={s} className="text-rose-700">{s}</li>)}
+                </ul>
+              ) : (
+                <div className="text-gray-500 text-[10px]">Ingen spesialisttilbud registrert.</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {activeModules.includes('education') && (
+        <div className={`rounded shadow-sm border ${MODULE_STYLE.education.accent} overflow-hidden`}>/* Education */
+          <button onClick={() => toggle('education')} className={`w-full flex items-center justify-between px-3 py-2 ${MODULE_STYLE.education.bg} ${MODULE_STYLE.education.text} font-semibold text-[11px]`}>Utdanningstilbud<span className="text-[10px]">{open.education ? '▼' : '►'}</span></button>
+          {open.education && (
+            <div className="p-3 bg-white text-[11px] space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <Badge label={`Grunnskole: ${m.has_primary_school ? 'Ja' : 'Nei'}`} color={m.has_primary_school ? 'green' : 'gray'} />
+                <Badge label={`Videregående: ${m.has_high_school ? 'Ja' : 'Nei'}`} color={m.has_high_school ? 'green' : 'gray'} />
+                <Badge label={`Universitet: ${m.has_university ? 'Ja' : 'Nei'}`} color={m.has_university ? 'green' : 'gray'} />
+                <Badge label={`Voksenopplæring: ${m.has_adult_language ? 'Ja' : 'Nei'}`} color={m.has_adult_language ? 'green' : 'gray'} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {activeModules.includes('capacity') && (
+        <div className={`rounded shadow-sm border ${MODULE_STYLE.capacity.accent} overflow-hidden`}>/* Capacity */
+          <button onClick={() => toggle('capacity')} className={`w-full flex items-center justify-between px-3 py-2 ${MODULE_STYLE.capacity.bg} ${MODULE_STYLE.capacity.text} font-semibold text-[11px]`}>Kapasitet<span className="text-[10px]">{open.capacity ? '▼' : '►'}</span></button>
+          {open.capacity && (
+            <div className="p-3 bg-white text-[11px] space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <Badge label={`Total: ${m.capacity_total}`} color="blue" />
+                <Badge label={`Bosatt: ${m.settled_current}`} color="blue" />
+                <Badge label={`Ledig: ${Math.max(0,m.capacity_total - m.settled_current)}`} color="blue" />
+                {m.tentative_claim != null && <Badge label={`Tentativt krav: ${m.tentative_claim}`} color="blue" />}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {activeModules.includes('connection') && (
+        <div className={`rounded shadow-sm border ${MODULE_STYLE.connection.accent} overflow-hidden`}>/* Connection */
+          <button onClick={() => toggle('connection')} className={`w-full flex items-center justify-between px-3 py-2 ${MODULE_STYLE.connection.bg} ${MODULE_STYLE.connection.text} font-semibold text-[11px]`}>Tilknytning (personbasert)<span className="text-[10px]">{open.connection ? '▼' : '►'}</span></button>
+          {open.connection && (
+            <div className="p-3 bg-white text-[11px] space-y-1">
+              <div className="text-[10px] text-gray-600">Se per-person seksjon for detaljer om relasjoner og match nivå.</div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+};
+
+const Badge: React.FC<{ label: string; color?: string }> = ({ label, color = 'gray' }) => {
+  const palette: Record<string, string> = {
+    gray: 'bg-gray-100 text-gray-700 border-gray-200',
+    amber: 'bg-amber-100 text-amber-800 border-amber-200',
+    green: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    rose: 'bg-rose-100 text-rose-700 border-rose-200',
+    blue: 'bg-blue-100 text-blue-700 border-blue-200'
+  };
+  return <span className={`px-1.5 py-0.5 rounded border text-[10px] font-medium ${palette[color] || palette.gray}`}>{label}</span>;
+};
+
+interface InfoBoxProps { label: string; value: React.ReactNode; tooltip?: string; items?: string[]; }
+const InfoBox: React.FC<InfoBoxProps> = ({ label, value, tooltip, items }) => {
+  const [open, setOpen] = React.useState(false);
+  const hasList = Array.isArray(items) && items.length > 0;
+  return (
+    <div className="border rounded p-2 bg-white flex flex-col gap-0.5" title={tooltip || ''}>
+      <span className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold flex items-center justify-between">
+        <span>{label}</span>
+        {hasList && (
+          <button type="button" onClick={() => setOpen(o=>!o)} className="text-[9px] text-gray-500 hover:text-gray-700 font-medium">
+            {open ? '−' : '+'}
+          </button>
+        )}
+      </span>
+      <span className="text-xs text-gray-800 font-medium">{value}</span>
+      {hasList && open && (
+        <ul className="mt-1 space-y-0.5 max-h-28 overflow-auto pr-1">
+          {items!.map(it => <li key={it} className="text-[10px] text-gray-700 leading-tight">{it}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+};

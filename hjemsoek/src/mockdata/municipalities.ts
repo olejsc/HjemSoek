@@ -20,6 +20,13 @@ export type Municipality = {
   work_opportunity?: {
     unemployment_rate?: number;
     profession_growth?: Record<string, number>;
+    profession_history?: Record<string, {
+      number_of_employees_in_profession_5_years_ago?: number;
+      number_of_employees_in_profession_now?: number;
+      percentage_of_municipality_workforce_5_years_ago?: number;
+      percentage_of_municipality_workforce_now?: number;
+      workforce_change_past_5_years?: number;
+    }>;
   };
   // Healthcare fields
   has_hospital?: boolean;
@@ -123,11 +130,35 @@ export function createNorwayMunicipalities(count = 50, seed = 1): Municipality[]
     // Unemployment 1..12% typically
     const unemployment_rate = Math.round((2 + rand() * 10) * 10) / 10;
 
-    // Random per-profession growth 0..100, sparse
-    const growth: Record<string, number> = {};
-    for (const p of professions) {
-      if (rand() < 0.6) continue; // sparse: only some professions have growth data
-      growth[p] = Math.round(rand() * 100);
+  // (Removed legacy profession_growth map – normalization now derives from history only)
+
+    // synthesize simple profession history to exercise scenarios:
+    const profession_history: Record<string, {
+      number_of_employees_in_profession_5_years_ago?: number;
+      number_of_employees_in_profession_now?: number;
+      percentage_of_municipality_workforce_5_years_ago?: number;
+      percentage_of_municipality_workforce_now?: number;
+      workforce_change_past_5_years?: number;
+    }> = {};
+    for (const prof of professions) {
+      // base employees 0..9
+      const base = Math.floor(rand()*10); // can be 0 triggers synthetic base logic
+      const delta = Math.floor(rand()*6) - 2; // -2..+3
+      const now = Math.max(0, base + delta);
+      const totalWorkforceBase = 100 + Math.floor(rand()*200); // 100..299 baseline workforce size (approx)
+      const totalWorkforceNow = totalWorkforceBase + Math.floor(rand()*20) - 10;
+      const share0 = totalWorkforceBase ? (base/totalWorkforceBase)*100 : 0;
+      const share1 = totalWorkforceNow ? (now/totalWorkforceNow)*100 : 0;
+      const pctChange = base === 0 ? (now>0?100:0) : ((now-base)/base)*100;
+      if (rand()<0.55) { // sparse history
+        profession_history[prof] = {
+          number_of_employees_in_profession_5_years_ago: base,
+          number_of_employees_in_profession_now: now,
+          percentage_of_municipality_workforce_5_years_ago: parseFloat(share0.toFixed(2)),
+            percentage_of_municipality_workforce_now: parseFloat(share1.toFixed(2)),
+          workforce_change_past_5_years: parseFloat(pctChange.toFixed(2))
+        };
+      }
     }
 
     out.push({
@@ -140,7 +171,7 @@ export function createNorwayMunicipalities(count = 50, seed = 1): Municipality[]
       tentative_claim,
       work_opportunity: {
         unemployment_rate,
-        profession_growth: Object.keys(growth).length ? growth : undefined,
+        profession_history: Object.keys(profession_history).length ? profession_history : undefined,
       },
       has_hospital: rand() < 0.4, // ~40% have a hospital
       specialist_facilities: (() => {

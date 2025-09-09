@@ -7,7 +7,7 @@ This document describes the scoring modules intended to be embedded inside a lar
 | Module Key | Purpose | Score Range | Direction | Notes |
 |------------|---------|-------------|-----------|-------|
 | capacity | Settlement feasibility vs available seats | 0..100 | higher better (overflow internally inverted for aggregation) | Penalizes overflow if allowed; infeasible can be 0 |
-| workOpportunity | Employment potential (per-person micro average) | 0..100 (if eligible persons) else 0 max | higher better | Two subweights: chance & growth; ignores ineligible person types |
+| workOpportunity | Employment potential (per-person micro average) | 0..100 (if eligible persons) else 0 max | higher better | Two subweights: chance & growth (growth derived from profession history); ignores ineligible person types |
 | connection | Social / familial / familiarity ties to target municipality | 0..100 (if eligible persons) else 0 max | higher better | Relation-based weighting + geographic ladder; babies excluded |
 | healthcare | Access to hospital & specialist treatment needs | 0..100 (if any healthcare needs) else 0 max | higher better | Two subweights (hospital, specialist); geographic tiers 100/50/25 |
 | education | Access to required education facility (per person needs) | 0..100 (if any education needs) else 0 max | higher better | Subweights per facility (primary, high, university, adult_language); tiers 100/50/25 |
@@ -128,19 +128,106 @@ const res = scoreHealthcare({
 });
 ```
 
-## Work Opportunity Module (V2)
+## Work Opportunity Module (V2 + Growth Normalization)
 
-Input: `WorkOpportunityInputV2`.
+Input: `WorkOpportunityInput`.
 - Per-person micro-average with zeros-as-scores (no data just yields 0 for that subcomponent).
+- Two subweights: chance & growth (defaults 50/50 when omitted).
 
-Per-person:
-- Chance: `C = 100 − unemployment_rate` (clamped 0..100). Missing unemployment => 0.
-- Growth: `G = profession_growth[profession]` (0 if missing or absent).
-- Composite: `Sᵢ = ŵ_c·C + ŵ_g·G`.
+Per-person raw components:
+1. Chance: `Cᵢ = 100 − unemployment_rate` (clamped 0..100). Missing unemployment ⇒ 0.
+2. Growth (normalized): Derived solely from historic workforce metrics in `profession_history` (raw positive percent change adjusted by scenario factors). When a profession lacks history ⇒ growth = 0.
 
-Group score: `score = (1/N) Σ Sᵢ` over ONLY eligible persons. Ineligible persons are omitted (not zeroed). If no eligible persons ⇒ `score=0`, `max_possible=0`, `confidence=0`.
-Subweights default 50/50 (`work.chance`, `work.growth`).
-`max_possible = 0` if N=0 else 100. Coverage=1 with micro-average policy.
+Composite: `Sᵢ = ŵ_c·Cᵢ + ŵ_g·Gᵢ` where ŵ are normalized subweights.
+
+Group score: `score = (1/N) Σ Sᵢ` over ONLY eligible persons. Ineligible persons are omitted (not zeroed). If no eligible persons ⇒ `score=0`, `max_possible=0`, `confidence=0`. `max_possible = 100` when at least one eligible person else 0.
+
+### Growth Normalization (Scenario-Based)
+
+Historic per-profession metrics (optional):
+```
+profession_history[profession] = {
+  number_of_employees_in_profession_5_years_ago: P0,
+  number_of_employees_in_profession_now: P1,
+  percentage_of_municipality_workforce_5_years_ago: Share0 (0-100),
+  percentage_of_municipality_workforce_now: Share1 (0-100),
+  workforce_change_past_5_years: (ignored; recomputed from P0/P1)
+}
+```
+
+If present for at least one profession, the module computes robust thresholds (median + MAD) across professions:
+```
+TH_abs   = median(|ΔN|) + MAD(|ΔN|)     where ΔN = P1 - P0_eff, P0_eff = (P0==0?1:P0)
+TH_pct   = median(|pct_growth|) + MAD(|pct_growth|) where pct_growth = ((P1-P0_eff)/P0_eff)*100
+TH_share = median(positive ΔShare) + MAD(positive ΔShare) where ΔShare = Share1 - Share0 > 0
+```
+Fallback: If MAD=0 ⇒ threshold = median.
+
+Scenario classification (two axes: absolute change vs percent growth magnitude):
+```
+BigAbsolute = |ΔN| ≥ TH_abs
+BigPercent  = |pct_growth| ≥ TH_pct
+
+Scenario 1: !BigPercent &&  BigAbsolute   (quiet but material)
+Scenario 2: !BigPercent && !BigAbsolute   (minor change)
+Scenario 3:  BigPercent &&  BigAbsolute   (strong + material)
+Scenario 4:  BigPercent && !BigAbsolute   (illusory percent – tiny base)
+```
+Tiny base flag: `tiny_base = (P0_raw < tinyBaseThreshold)` (default 2). When `P0_raw=0` a synthetic `P0_eff=1` is used for calculations.
+
+Only positive ΔShare contributes to structural boost: `ΔShare = max(0, Share1-Share0)`.
+
+Normalization factors (defaults in code, overridable via `growth_normalization` input):
+```
+tinyBaseThreshold = 2
+beta_boost_s1     = 0.4   (Scenario 1 boost strength)
+damp_s4           = 0.5   (Scenario 4 damp multiplier)
+gamma_share       = 0.3   (Share structural boost strength)
+cap_factor        = 1.5   (Max multiplier for combined factors)
+final_cap         = 200   (Trace-only cap for adjusted raw growth)
+k_abs_scale       = TH_abs (or numeric)
+k_boost_scale     = TH_abs (or numeric)
+share_scale_mode  = TH_share_or_5pp  (S_share = max(TH_share, 5))
+```
+
+Factor components:
+```
+F_abs     = |ΔN| / (|ΔN| + K_abs)
+F_base    = (P0_raw < tinyBaseThreshold) ? P0_raw / tinyBaseThreshold : 1
+F_shareRaw= ΔShare / (ΔShare + S_share)
+F_struct  = 1 + gamma_share * F_shareRaw
+
+Scenario multiplier F_scen:
+  S1: 1 + beta_boost_s1 * (|ΔN| / (|ΔN| + K_boost))
+  S2: 1
+  S3: 1 (neutral by design)
+  S4: damp_s4 * F_base
+
+F_total_raw = F_scen * F_abs * F_struct * F_base
+F_total     = min(F_total_raw, cap_factor)
+
+positive_pct = max(0, pct_growth)
+AdjustedRaw  = positive_pct * F_total  (may exceed 100; trace-only limited to final_cap)
+GrowthScore  = min(AdjustedRaw, 100)   (used in composite; negative pct ⇒ 0)
+```
+
+Trace fields for each person when normalization active:
+```
+growth_scenario (1..4)
+growth_adjusted_raw (capped at final_cap, possibly >100)
+growth_factors: {
+  P0_raw, P0_eff, P1, deltaN, recomputed_pct, positive_pct,
+  share0, share1, delta_share_raw, delta_share,
+  thresholds { TH_abs, TH_pct, TH_share }, tiny_base, negative_growth,
+  F_scen, F_abs, F_base, F_shareRaw, F_struct, F_total_raw, F_total,
+  params (effective normalization config)
+}
+```
+
+If no `profession_history` is present for the person's profession, growth falls back to simple `clamp(profession_growth[profession], 0, 100)`.
+
+### Note
+Legacy `profession_growth` input has been removed. Growth scoring now depends entirely on `profession_history`. If history is absent for a profession its growth contribution is zero (transparent in trace).
 
 ## Connection Module
 

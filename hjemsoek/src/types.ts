@@ -67,8 +67,14 @@ export interface MunicipalityCapacityInput {
 export interface MunicipalityWorkInputs {
   /** Unemployment rate in %, 0..100. Lower unemployment ⇒ higher employment chance. */
   unemployment_rate?: number;
-  /** Per-profession growth potential map: key = profession, value = 0..100. */
-  profession_growth?: Record<string, number>;
+  /** Per-profession historic workforce metrics used for growth normalization (required to score growth). */
+  profession_history?: Record<string, {
+    number_of_employees_in_profession_5_years_ago?: number; // P0 (raw, may be 0)
+    number_of_employees_in_profession_now?: number; // P1
+    percentage_of_municipality_workforce_5_years_ago?: number; // Share0 (0-100)
+    percentage_of_municipality_workforce_now?: number; // Share1 (0-100)
+    workforce_change_past_5_years?: number; // Provided pct change (-100..100)
+  }>;
 }
 
 /**
@@ -127,6 +133,8 @@ export interface WorkOpportunityInput {
   municipality: { work_opportunity?: MunicipalityWorkInputs };
   /** Optional subweight array; defaults to 50/50 when omitted. */
   subweights?: WorkSubweight[];
+  /** Optional normalization configuration for growth adjustment. */
+  growth_normalization?: Partial<WorkGrowthNormalizationConfig>;
 }
 
 /**
@@ -190,6 +198,34 @@ export interface WorkPersonTrace {
   chance: number;
   /** Growth subscore (0..100). */
   growth: number;
+  /** Optional raw adjusted growth pre-cap (can exceed 100, up to 200 trace cap). */
+  growth_adjusted_raw?: number;
+  /** Scenario classification when normalization active (1..4 or undefined). */
+  growth_scenario?: 1|2|3|4;
+  /** Detailed normalization factors (present only when history used). */
+  growth_factors?: {
+    P0_raw: number;
+    P0_eff: number;
+    P1: number;
+    deltaN: number;
+    recomputed_pct: number;
+    positive_pct: number;
+    share0: number;
+    share1: number;
+    delta_share_raw: number;
+    delta_share: number;
+    thresholds: { TH_abs: number; TH_pct: number; TH_share: number };
+    tiny_base: boolean;
+    negative_growth: boolean;
+    F_scen: number;
+    F_abs: number;
+    F_base: number;
+    F_shareRaw: number;
+    F_struct: number;
+    F_total_raw: number;
+    F_total: number;
+    params: WorkGrowthNormalizationConfig;
+  };
   /** Normalized per-person weights applied. */
   weights: { chance: number; growth: number };
   /** Composite Sᵢ = w_c·Cᵢ + w_g·Gᵢ. */
@@ -220,6 +256,19 @@ export interface WorkOpportunityResult extends BaseModuleResult {
   }>;
   /** Per-person traces. */
   persons: WorkPersonTrace[];
+}
+
+/** Normalization configuration (values documented in scoring.md extension). */
+export interface WorkGrowthNormalizationConfig {
+  tinyBaseThreshold: number; // default 2
+  beta_boost_s1: number; // default 0.4 (Scenario1 boost strength)
+  damp_s4: number; // default 0.5 (Scenario4 damp multiplier before other factors)
+  gamma_share: number; // default 0.3 (structural delta share boost)
+  cap_factor: number; // default 1.5 (cap for multiplicative factor)
+  final_cap: number; // default 200 (trace-only cap for adjusted raw growth)
+  k_abs_scale: 'TH_abs' | number; // denominator for F_abs
+  k_boost_scale: 'TH_abs' | number; // denominator for scenario 1 boost
+  share_scale_mode: 'TH_share_or_5pp' | number; // scale S_share
 }
 
 /**
