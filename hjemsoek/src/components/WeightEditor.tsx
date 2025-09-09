@@ -7,6 +7,7 @@ import type {
   ConnectionSubweight,
   HealthcareSubweight,
   EducationSubweight,
+  CapacityOptions,
 } from '../types';
 
 // -------------------- Types & Props --------------------
@@ -26,6 +27,9 @@ export interface WeightEditorProps {
   onHealthcareSubweightsChange?(next: HealthcareSubweight[]): void;
   educationSubweights?: EducationSubweight[];
   onEducationSubweightsChange?(next: EducationSubweight[]): void;
+  /** Kapasitet modul spesifikke opsjoner (checkboxes). */
+  capacityOptions?: CapacityOptions;
+  onCapacityOptionsChange?(next: CapacityOptions): void;
 }
 
 // Stable ordered list of top-level modules we expose in UI
@@ -479,6 +483,44 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
                             <button onClick={() => setTableOpenModule(null)} className="text-[11px] text-gray-500 hover:text-gray-700">Lukk</button>
                           </div>
                         </div>
+                        {/* Capacity spesifikke opsjoner */}
+                        {k === 'capacity' && (
+                          <div className="mb-3 border border-blue-100 rounded-md bg-blue-50/40 p-3 space-y-2">
+                            <div className="text-[11px] font-medium text-blue-900">Kapasitet innstillinger</div>
+                            <div className="flex flex-col sm:flex-row gap-3 text-[11px]">
+                              <label className="inline-flex items-start gap-2 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5"
+                                  checked={!!props.capacityOptions?.include_tentative}
+                                  onChange={e => props.onCapacityOptionsChange?.({
+                                    include_tentative: e.target.checked,
+                                    allow_overflow: props.capacityOptions?.allow_overflow ?? false,
+                                  })}
+                                />
+                                <span>
+                                  Inkluder tentativt krav
+                                  <span className="block text-[10px] text-gray-500">Trekk fra foreløpige reserverte plasser før margin beregnes.</span>
+                                </span>
+                              </label>
+                              <label className="inline-flex items-start gap-2 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5"
+                                  checked={!!props.capacityOptions?.allow_overflow}
+                                  onChange={e => props.onCapacityOptionsChange?.({
+                                    include_tentative: props.capacityOptions?.include_tentative ?? false,
+                                    allow_overflow: e.target.checked,
+                                  })}
+                                />
+                                <span>
+                                  Tillat overflyt (straff)
+                                  <span className="block text-[10px] text-gray-500">Hvis gruppen ikke får plass, beregn straff-score i stedet for 0.</span>
+                                </span>
+                              </label>
+                            </div>
+                          </div>
+                        )}
                         {renderSubweights(k)}
                       </td>
                     </tr>

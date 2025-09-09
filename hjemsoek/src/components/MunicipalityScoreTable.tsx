@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Group, ModuleWeights, CapacitySubweight, WorkSubweight, ConnectionSubweight, HealthcareSubweight, EducationSubweight } from '../types';
+import type { Group, ModuleWeights, CapacitySubweight, WorkSubweight, ConnectionSubweight, HealthcareSubweight, EducationSubweight, CapacityOptions, CapacityResult, WorkOpportunityResult, ConnectionResult as ConnectionResultType, HealthcareResult, EducationResult } from '../types';
 import { scoreCapacity } from '../categories/capacity';
 import { scoreWorkOpportunity } from '../categories/work';
 import { scoreConnection } from '../categories/connection';
@@ -14,6 +14,7 @@ export interface MunicipalityScoreTableProps {
   municipalities: Municipality[];
   moduleWeights: ModuleWeights; // integers (not necessarily normalized, aggregate handles normalization)
   capacitySubweights?: CapacitySubweight[];
+  capacityOptions?: CapacityOptions;
   workSubweights?: WorkSubweight[];
   connectionSubweights?: ConnectionSubweight[];
   healthcareSubweights?: HealthcareSubweight[];
@@ -67,6 +68,9 @@ interface RowData {
   educationRes: ReturnType<typeof scoreEducation> | null;
   aggregate: ReturnType<typeof aggregateOverall> | null;
 }
+
+// Dedicated type for table sort keys
+type TableSortKey = 'overall' | 'name' | 'capacity' | 'workOpportunity' | 'connection' | 'healthcare' | 'education';
 
 // Map 0-100 score into 0.5 increments up to 5 stars.
 function starsForScore(score: number): number {
@@ -133,33 +137,33 @@ export const MunicipalityScoreTable: React.FC<MunicipalityScoreTableProps> = (pr
   const rows = React.useMemo<RowData[]>(() => {
     if (!group.persons.length) return [];
     return municipalities.map(m => {
-      const capacityRes = scoreCapacity({
+  const capacityRes = scoreCapacity({
         group,
         municipality: { capacity_total: m.capacity_total, settled_current: m.settled_current, tentative_claim: m.tentative_claim },
-        options: { include_tentative: true, allow_overflow: true },
+        options: props.capacityOptions || { include_tentative: true, allow_overflow: true },
         subweights: props.capacitySubweights,
-      } as any);
-      const workRes = scoreWorkOpportunity({
+  });
+  const workRes = scoreWorkOpportunity({
         group,
         municipality: { work_opportunity: m.work_opportunity },
         subweights: props.workSubweights,
-      } as any);
-      const connectionRes = scoreConnection({
+  });
+  const connectionRes = scoreConnection({
         group,
         target_municipality_id: m.id,
         municipality_region_map: regionMap,
         adjacency_map: adjacencyMap,
         subweights: props.connectionSubweights,
-      } as any);
-      const healthcareRes = scoreHealthcare({
+  });
+  const healthcareRes = scoreHealthcare({
         group,
         target_municipality_id: m.id,
         municipality_region_map: regionMap,
         adjacency_map: adjacencyMap,
         municipality_healthcare_map: Object.fromEntries(municipalities.map(mm => [mm.id, { has_hospital: mm.has_hospital, specialist_facilities: mm.specialist_facilities }])),
         subweights: props.healthcareSubweights,
-      } as any);
-      const educationRes = scoreEducation({
+  });
+  const educationRes = scoreEducation({
         group,
         target_municipality_id: m.id,
         municipality_region_map: regionMap,
@@ -171,7 +175,7 @@ export const MunicipalityScoreTable: React.FC<MunicipalityScoreTableProps> = (pr
           has_adult_language: mm.has_adult_language,
         }])),
         subweights: props.educationSubweights,
-      } as any);
+  });
 
       const aggregate = aggregateOverall({
         capacity: capacityRes,
@@ -199,9 +203,11 @@ export const MunicipalityScoreTable: React.FC<MunicipalityScoreTableProps> = (pr
         aggregate,
       };
     });
-  }, [group, municipalities, moduleWeights, props.capacitySubweights, props.workSubweights, props.connectionSubweights, props.healthcareSubweights, props.educationSubweights, adjacencyMap, regionMap]);
+  }, [group, municipalities, moduleWeights, props.capacitySubweights, props.capacityOptions, props.workSubweights, props.connectionSubweights, props.healthcareSubweights, props.educationSubweights, adjacencyMap, regionMap]);
 
   const [inspect, setInspect] = React.useState<RowData | null>(null);
+  // Selected row for JSON view (inline below table)
+  const [jsonRow, setJsonRow] = React.useState<RowData | null>(null);
   React.useEffect(() => {
     if (!inspect) return;
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setInspect(null); }
@@ -210,8 +216,7 @@ export const MunicipalityScoreTable: React.FC<MunicipalityScoreTableProps> = (pr
   }, [inspect]);
 
   // Sorting
-  type SortKey = 'overall' | 'name' | 'capacity' | 'workOpportunity' | 'connection' | 'healthcare' | 'education';
-  const [sortKey, setSortKey] = React.useState<SortKey>('overall');
+  const [sortKey, setSortKey] = React.useState<TableSortKey>('overall');
   const [sortDir, setSortDir] = React.useState<'asc'|'desc'>('desc');
 
   // Fallback if current sort key is for a hidden module
@@ -225,17 +230,20 @@ export const MunicipalityScoreTable: React.FC<MunicipalityScoreTableProps> = (pr
   const sorted = React.useMemo(() => {
     const arr = [...rows];
     arr.sort((a,b) => {
-      let av: any; let bv: any;
+      let av: number | string; let bv: number | string;
       if (sortKey === 'overall') { av = a.overall; bv = b.overall; }
       else if (sortKey === 'name') { av = a.municipality.name; bv = b.municipality.name; }
       else { av = a.modules[sortKey]; bv = b.modules[sortKey]; }
-      if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-      return sortDir === 'asc' ? av - bv : bv - av;
+      if (typeof av === 'string' && typeof bv === 'string') {
+        return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      const an = av as number; const bn = bv as number;
+      return sortDir === 'asc' ? an - bn : bn - an;
     });
     return arr;
   }, [rows, sortKey, sortDir]);
 
-  function toggleSort(k: SortKey) {
+  function toggleSort(k: TableSortKey) {
     setSortKey(prev => prev === k ? prev : k);
     setSortDir(prev => (sortKey === k ? (prev === 'asc' ? 'desc' : 'asc') : (k === 'name' ? 'asc' : 'desc')));
   }
@@ -309,14 +317,23 @@ export const MunicipalityScoreTable: React.FC<MunicipalityScoreTableProps> = (pr
                 {activeModuleKeys.includes('education') && (
                   <td className="px-2 py-1"><Bar value={r.modules.education} /></td>
                 )}
-                <td className="px-2 py-1 text-right">
+                <td className="px-2 py-1 text-right space-x-1 whitespace-nowrap">
                   <button onClick={() => setInspect(r)} className="text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400">Inspiser</button>
+                  <button
+                    onClick={() => setJsonRow(j => j && j.municipality.id === r.municipality.id ? null : r)}
+                    className={`text-xs px-2 py-1 rounded font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 ${jsonRow?.municipality.id === r.municipality.id ? 'bg-emerald-700 hover:bg-emerald-600 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
+                    title="Show JSON scoring"
+                  >{jsonRow?.municipality.id === r.municipality.id ? 'Lukk JSON' : 'Show JSON'}</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {/* Inline JSON view */}
+      {jsonRow && (
+        <JsonScoringPanel row={jsonRow} onClose={() => setJsonRow(null)} />
+      )}
       {inspect && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 md:p-8">
           <div className="absolute inset-0 bg-black/40" onClick={() => setInspect(null)} />
@@ -333,11 +350,11 @@ export const MunicipalityScoreTable: React.FC<MunicipalityScoreTableProps> = (pr
   );
 };
 
-const Th: React.FC<{ label: string; sortKey?: any; current?: string; dir?: 'asc'|'desc'; onSort?: (k:any)=>void; noSort?: boolean }> = ({ label, sortKey, current, dir, onSort, noSort }) => {
+const Th: React.FC<{ label: string; sortKey?: TableSortKey; current?: string; dir?: 'asc'|'desc'; onSort?: (k:TableSortKey)=>void; noSort?: boolean }> = ({ label, sortKey, current, dir, onSort, noSort }) => {
   if (noSort) return <th className="px-2 py-2 font-semibold text-xs text-gray-600">{label}</th>;
   const active = current === sortKey;
   return (
-    <th className="px-2 py-2 font-semibold text-xs text-gray-600 cursor-pointer select-none" onClick={() => onSort && sortKey && onSort(sortKey as any)}>
+  <th className="px-2 py-2 font-semibold text-xs text-gray-600 cursor-pointer select-none" onClick={() => onSort && sortKey && onSort(sortKey)}>
       <span className="inline-flex items-center gap-1">
         {label}
         {active && (<span className="text-[10px]">{dir === 'asc' ? '▲' : '▼'}</span>)}
@@ -347,6 +364,55 @@ const Th: React.FC<{ label: string; sortKey?: any; current?: string; dir?: 'asc'
 };
 
 export default MunicipalityScoreTable;
+
+// Panel for JSON scoring output with copy & close actions
+const JsonScoringPanel: React.FC<{ row: RowData; onClose: () => void }> = ({ row, onClose }) => {
+  const [copied, setCopied] = React.useState(false);
+  const payload = React.useMemo(() => ({
+    municipality: {
+      id: row.municipality.id,
+      name: row.municipality.name,
+      region: row.municipality.region_id,
+      county: row.municipality.county,
+    },
+    overall: row.overall,
+    modules: row.modules,
+    details: {
+      capacity: row.capacityRes,
+      workOpportunity: row.workRes,
+      connection: row.connectionRes,
+      healthcare: row.healthcareRes,
+      education: row.educationRes,
+      aggregate: row.aggregate,
+    }
+  }), [row]);
+
+  function copy() {
+    try {
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* swallow */
+    }
+  }
+  return (
+    <div className="mt-4 border rounded-lg bg-gray-50 ring-1 ring-gray-200 overflow-hidden text-xs">
+      <div className="flex items-center justify-between px-3 py-2 bg-gray-100 border-b">
+        <span className="font-semibold text-gray-700">Scoring JSON: {payload.municipality.name}</span>
+        <div className="flex items-center gap-2">
+          <button onClick={copy} className="text-[11px] px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-400">
+            {copied ? 'Kopiert!' : 'Kopiér'}
+          </button>
+          <button onClick={onClose} className="text-[11px] px-2 py-1 rounded bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-gray-400">Lukk</button>
+        </div>
+      </div>
+      <div className="max-h-96 overflow-auto">
+        <pre className="p-3 text-[10px] leading-snug whitespace-pre text-gray-800 font-mono">{JSON.stringify(payload, null, 2)}</pre>
+      </div>
+    </div>
+  );
+};
 
 // Inspect modal inner content separated for clarity
 const ModalContent: React.FC<{ inspect: RowData; group: Group; activeModules: string[]; onClose: () => void }> = ({ inspect, group, activeModules }) => {
@@ -413,14 +479,16 @@ const ModalContent: React.FC<{ inspect: RowData; group: Group; activeModules: st
               )}
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              {['capacity','workOpportunity','connection','healthcare','education'].map(mod => {
-                const res: any = (mod === 'capacity' ? inspect.capacityRes : mod === 'workOpportunity' ? inspect.workRes : mod === 'connection' ? inspect.connectionRes : mod === 'healthcare' ? inspect.healthcareRes : inspect.educationRes);
+              {(['capacity','workOpportunity','connection','healthcare','education'] as const).map(mod => {
+                type ModuleResultUnion = CapacityResult | WorkOpportunityResult | ConnectionResultType | HealthcareResult | EducationResult | null;
+                const res: ModuleResultUnion = (mod === 'capacity' ? inspect.capacityRes : mod === 'workOpportunity' ? inspect.workRes : mod === 'connection' ? inspect.connectionRes : mod === 'healthcare' ? inspect.healthcareRes : inspect.educationRes);
                 if (!res || !activeModules.includes(mod)) return null;
+                const subscores = (res as unknown as { subscores?: Array<{id:string; normalized_weight:number; score?:number; contribution?:number}> }).subscores;
                 return (
                   <div key={mod} className="border rounded p-2 bg-white">
                     <div className="font-semibold text-gray-700 mb-1 capitalize">{mod}</div>
                     <div className="mb-1">Score: {res.effective_score?.toFixed?.(1)}% (maks {res.max_possible})</div>
-                    {Array.isArray(res.subscores) && res.subscores.length > 0 && (
+                    {Array.isArray(subscores) && subscores.length > 0 && (
                       <div className="overflow-x-auto mb-2">
                         <table className="min-w-full text-[10px]">
                           <thead>
@@ -432,7 +500,7 @@ const ModalContent: React.FC<{ inspect: RowData; group: Group; activeModules: st
                             </tr>
                           </thead>
                           <tbody className="divide-y">
-                            {res.subscores.map((s:any) => (
+                            {subscores.map(s => (
                               <tr key={s.id}>
                                 <td className="px-1 py-0.5">{s.id}</td>
                                 <td className="px-1 py-0.5">{(s.normalized_weight*100).toFixed(1)}%</td>

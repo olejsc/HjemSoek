@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Group, ModuleWeights, CapacitySubweight, WorkSubweight, ConnectionSubweight, HealthcareSubweight, EducationSubweight } from './types';
+import type { Group, ModuleWeights, CapacitySubweight, WorkSubweight, ConnectionSubweight, HealthcareSubweight, EducationSubweight, CapacityOptions } from './types';
 import GroupEditor from './components/GroupEditor';
 import WeightEditor from './components/WeightEditor';
 import MunicipalityScoreTable from './components/MunicipalityScoreTable';
@@ -20,6 +20,7 @@ function App() {
   const [capacitySubs, setCapacitySubs] = React.useState<CapacitySubweight[]>([
     { id: 'capacity.core', weight: 1 },
   ]);
+  const [capacityOptions, setCapacityOptions] = React.useState<CapacityOptions>({ include_tentative: true, allow_overflow: true });
   const [workSubs, setWorkSubs] = React.useState<WorkSubweight[]>([
     { id: 'work.chance', weight: 1 },
     { id: 'work.growth', weight: 1 },
@@ -65,6 +66,8 @@ function App() {
                 onModuleWeightsChange={setModuleWeights}
                 capacitySubweights={capacitySubs}
                 onCapacitySubweightsChange={setCapacitySubs}
+                capacityOptions={capacityOptions}
+                onCapacityOptionsChange={setCapacityOptions}
                 workSubweights={workSubs}
                 onWorkSubweightsChange={setWorkSubs}
                 connectionSubweights={connectionSubs}
@@ -81,6 +84,7 @@ function App() {
                 municipalities={municipalities}
                 moduleWeights={moduleWeights}
                 capacitySubweights={capacitySubs}
+                capacityOptions={capacityOptions}
                 workSubweights={workSubs}
                 connectionSubweights={connectionSubs}
                 healthcareSubweights={healthcareSubs}
