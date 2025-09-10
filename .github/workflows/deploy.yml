@@ -5,6 +5,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+defaults:
+  run:
+    working-directory: hjemsoek
+
 permissions:
   contents: read
   pages: write
@@ -26,14 +30,13 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+          cache-dependency-path: hjemsoek/package-lock.json
 
       - name: Install deps
         run: npm ci
-        working-directory: hjemsoek
 
       - name: Build
         run: npm run build
-        working-directory: hjemsoek
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
