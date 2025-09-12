@@ -5,6 +5,7 @@ import { PERSON_TYPE_LABEL_NB, CONNECTION_RELATION_LABEL_NB, EDUCATION_FACILITY_
 import { PROFESSION_LABEL_NB } from '../labels.nb';
 import { allowedRelations, educationNeedsList, canHaveProfession } from '../categories/eligibility';
 import { createNorwayMunicipalities, regions as mockRegions, professions as mockProfessions } from '../mockdata';
+import GroupDescriptionPanel from './GroupDescriptionPanel';
 
 // Simple sequential id helper (local to component instance)
 function useNextId(initial:number = 1) {
@@ -34,6 +35,8 @@ export interface GroupEditorProps {
 
 export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, municipalities = [], regions = [], professions = [] }) => {
   const [showJson, setShowJson] = React.useState<boolean>(false); // hidden by default across platforms
+  const [showDescription, setShowDescription] = React.useState<boolean>(false);
+  const sideVisible = showJson || showDescription;
   // Fallback mock data if host app doesn't provide
   const muniData = React.useMemo(() => {
     const src = municipalities.length ? municipalities : createNorwayMunicipalities(50,1);
@@ -76,16 +79,19 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
   return (
     <div className="w-full">
       <div className="flex flex-col md:flex-row w-full">
-        <div className={`overflow-x-auto rounded-xl shadow ring-1 ring-green-200 bg-white transition-all duration-300 flex-1 md:mr-4`}>  
+        <div className={`overflow-x-auto rounded-xl shadow ring-1 ring-green-200 bg-white transition-all duration-300 flex-1 ${sideVisible ? 'md:mr-4' : ''}`}>  
         <div className="flex items-center justify-between px-4 py-2 border-b border-green-100 bg-green-50 rounded-t-xl gap-2">
           <h2 className="font-semibold text-green-900 text-sm">Personer</h2>
           <div className="flex items-center gap-2">
+            <button onClick={() => setShowDescription(s => !s)} className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white shadow focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500">
+              {showDescription ? 'Skjul beskrivelse' : 'Vis beskrivelse'}
+            </button>
             {!showJson && (
               <button onClick={() => setShowJson(true)} className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white shadow focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 md:hidden">
                 Vis JSON
               </button>
             )}
-            <button onClick={() => setShowJson(s => !s)} className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white shadow focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 hidden md:inline-flex">
+            <button onClick={() => setShowJson(s => !s)} className="text-xs items-center gap-1 px-2 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white shadow focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 hidden md:inline-flex">
               {showJson ? 'Skjul JSON' : 'Vis JSON'}
             </button>
           </div>
@@ -130,7 +136,7 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
                   <select className="border border-gray-300 rounded-md px-2 py-1 w-full bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" value={p.connection?.municipality_id || ''} onChange={e => {
                     const municipality_id = e.target.value || undefined;
                     if (!municipality_id) { updatePerson(p.id, { connection: undefined }); return; }
-                    const muni: any = muniData.find(m => m.id === municipality_id);
+                    const muni = muniData.find(m => m.id === municipality_id);
                     const region_id = muni?.region_id;
                     const connection = { municipality_id, region_id, relation: p.connection?.relation };
                     updatePerson(p.id, { connection });
@@ -144,7 +150,7 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
                     const region_id = e.target.value || undefined;
                     if (!region_id) { updatePerson(p.id, { connection: undefined }); return; }
                     // keep municipality only if it matches selected region
-                    const muni: any = muniData.find(m => m.id === p.connection?.municipality_id);
+                    const muni = muniData.find(m => m.id === p.connection?.municipality_id);
                     const municipality_id = muni && muni.region_id === region_id ? muni.id : undefined;
                     const connection = { region_id, municipality_id, relation: p.connection?.relation };
                     updatePerson(p.id, { connection });
@@ -197,16 +203,25 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
         </tbody>
         </table>
         </div>
-  {/* Collapsible JSON side panel */}
-  <div className={`transition-all duration-300 ease-in-out overflow-hidden ${showJson ? 'md:w-80 opacity-100 translate-x-0' : 'md:w-0 w-0 opacity-0 pointer-events-none'} `}>
-          <div className="h-full rounded-xl shadow ring-1 ring-gray-200 bg-white flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50">
-              <h2 className="font-semibold text-gray-700 text-sm">JSON</h2>
-              <button onClick={() => setShowJson(false)} className="hidden md:inline-flex text-gray-500 hover:text-gray-700 text-xs">Lukk</button>
-            </div>
-            <pre className="flex-1 m-0 p-3 text-[11px] leading-snug overflow-auto bg-gray-50">{JSON.stringify(value, null, 2)}</pre>
-          </div>
+  {/* Optional side panel (only rendered when visible) */}
+  {sideVisible && (
+    <div className="flex flex-col md:w-80 space-y-4 md:ml-4 mt-4 md:mt-0">
+      {showDescription && (
+        <div className="transition-all duration-300 ease-in-out">
+          <GroupDescriptionPanel group={value} municipalities={muniData} regions={regionData} />
         </div>
+      )}
+      {showJson && (
+        <div className="h-full rounded-xl shadow ring-1 ring-gray-200 bg-white flex flex-col overflow-hidden transition-all duration-300 ease-in-out">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50">
+            <h2 className="font-semibold text-gray-700 text-sm">JSON</h2>
+            <button onClick={() => setShowJson(false)} className="hidden md:inline-flex text-gray-500 hover:text-gray-700 text-xs">Lukk</button>
+          </div>
+          <pre className="flex-1 m-0 p-3 text-[11px] leading-snug overflow-auto bg-gray-50">{JSON.stringify(value, null, 2)}</pre>
+        </div>
+      )}
+    </div>
+  )}
       </div>
     </div>
   );

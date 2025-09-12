@@ -43,6 +43,19 @@ If you hit an ESM / module resolution error, ensure you are on Node >=18 and tha
 
 This project is a React + TypeScript + Vite app that embeds a pure scoring core. The scoring logic is framework-agnostic and lives under `src/categories/`. Each module returns a structured result extending `BaseModuleResult` (see `src/types.ts`). Modules can be combined via `aggregateOverall` with automatic weight normalization and confidence-aware max potential.
 
+### Group Description Panel
+
+I tillegg til tabellvisningen finnes en valgfri "Beskrivelse"-panel i `GroupEditor` som genererer en naturlig norsk tekstlig oppsummering av gruppen:
+
+* Dynamisk avledet av personliste (rekkefølge beholdes) – ingen manuell skriving.
+* Skriver én innledende setning per person med ordinal («Den første personen …», «Den andre personen …») og maks to kombinerte egenskaper.
+* Ekstra behov (utdanning, tilknytning, spesialist, sykehus) blir egne korte setninger med variasjon i innledning ("Videre har personen …", "I tillegg har personen …", etc. – planlagt/inkrementell variasjon).
+* Skiller automatisk mellom attributter og utelater tomme felt.
+* Kopier‑knapp for enkel innliming i saksbehandlers notater.
+* Hovedtabellen bruker full bredde når verken beskrivelse eller JSON‑panel er åpne.
+
+Formatering og generering finnes i `src/utils/groupDescription.ts` og UI‑komponenten i `src/components/GroupDescriptionPanel.tsx`.
+
 ## Scoring Modules Summary
 
 | Key | Purpose | Score Range | Direction | Notes |
