@@ -98,17 +98,33 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
         </div>
         <table className="w-full text-sm">
         <thead>
+          {/* Group header row */}
+          <tr className="bg-green-100 text-green-900 text-left text-xs uppercase tracking-wide">
+            <th className="px-3 py-1 font-semibold rounded-tl-xl" rowSpan={2}>#</th>
+            <th className="px-3 py-1 font-semibold" rowSpan={2}>PersonType</th>
+            {/* Arbeid group (profession) */}
+            <th className="px-3 py-1 font-semibold text-center border-l-2 border-green-300" colSpan={1}>Arbeid</th>
+            {/* Tilknytning group (3 cols) */}
+            <th className="px-3 py-1 font-semibold text-center border-l-2 border-green-300" colSpan={3}>Tilknytning</th>
+            {/* Helse group (2 cols) */}
+            <th className="px-3 py-1 font-semibold text-center border-l-2 border-green-300" colSpan={2}>Helse</th>
+            {/* Utdanning group (1 col) */}
+            <th className="px-3 py-1 font-semibold text-center border-l-2 border-green-300" colSpan={1}>Utdanning</th>
+            <th className="px-3 py-1 font-semibold text-right rounded-tr-xl" rowSpan={2}></th>
+          </tr>
+          {/* Sub header row */}
           <tr className="bg-green-50 text-left text-green-900">
-            <th className="px-3 py-2 font-semibold first:rounded-tl-xl">#</th>
-            <th className="px-3 py-2 font-semibold">PersonType</th>
-            <th className="px-3 py-2 font-semibold">Yrke</th>
-            <th className="px-3 py-2 font-semibold">Tilknytning (kommune)</th>
+            {/* Arbeid subcol */}
+            <th className="px-3 py-2 font-semibold border-l-2 border-green-300">Yrke</th>
+            {/* Tilknytning subcols */}
+            <th className="px-3 py-2 font-semibold border-l-2 border-green-300">Tilknytning (kommune)</th>
             <th className="px-3 py-2 font-semibold">Tilknytning (region)</th>
-            <th className="px-3 py-2 font-semibold">Relasjon</th>
-            <th className="px-3 py-2 font-semibold">Sykehus behov</th>
-            <th className="px-3 py-2 font-semibold">Spesialist behov</th>
-            <th className="px-3 py-2 font-semibold">Utdanning behov</th>
-            <th className="px-3 py-2 font-semibold text-right last:rounded-tr-xl" />
+            <th className="px-3 py-2 font-semibold border-r-2 border-green-300">Relasjon</th>
+            {/* Helse subcols */}
+            <th className="px-3 py-2 font-semibold border-l-2 border-green-300">Sykehus behov</th>
+            <th className="px-3 py-2 font-semibold border-r-2 border-green-300">Spesialist behov</th>
+            {/* Utdanning */}
+            <th className="px-3 py-2 font-semibold border-l-2 border-green-300">Utdanning behov</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -124,7 +140,8 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
                     {PERSON_TYPES.map(t => <option key={t} value={t}>{PERSON_TYPE_LABEL_NB[t]}</option>)}
                   </select>
                 </td>
-                <td className="px-3 py-2">
+                {/* Arbeid */}
+                <td className="px-3 py-2 border-l-2 border-green-300">
                   {canProfession ? (
                     <select className="border border-gray-300 rounded-md px-2 py-1 w-full bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" value={p.profession || ''} onChange={e => updatePerson(p.id, { profession: e.target.value || undefined })}>
                       <option value="">{PLACEHOLDER}</option>
@@ -132,7 +149,8 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
                     </select>
                   ) : <em className="text-gray-300">n/a</em>}
                 </td>
-                <td className="px-3 py-2">
+                {/* Tilknytning (kommune) */}
+                <td className="px-3 py-2 border-l-2 border-green-300">
                   <select className="border border-gray-300 rounded-md px-2 py-1 w-full bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" value={p.connection?.municipality_id || ''} onChange={e => {
                     const municipality_id = e.target.value || undefined;
                     if (!municipality_id) { updatePerson(p.id, { connection: undefined }); return; }
@@ -159,7 +177,7 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
                     {regionData.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 border-r-2 border-green-300">
                   {relAllowed.length ? (
                     <select className="border border-gray-300 rounded-md px-2 py-1 w-full bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" value={p.connection?.relation || ''} onChange={e => {
                       const relation = e.target.value as ConnectionRelation;
@@ -172,16 +190,18 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
                     </select>
                   ) : <em className="text-gray-300">n/a</em>}
                 </td>
-                <td className="px-3 py-2 text-center">
+                {/* Helse */}
+                <td className="px-3 py-2 text-center border-l-2 border-green-300">
                   <input className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded" type="checkbox" checked={!!p.needs_hospital} onChange={e => updatePerson(p.id, { needs_hospital: e.target.checked || undefined })} />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 border-r-2 border-green-300">
                   <select className="border border-gray-300 rounded-md px-2 py-1 w-full bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" value={p.specialist_need || ''} onChange={e => updatePerson(p.id, { specialist_need: e.target.value || undefined })}>
                     <option value="">{PLACEHOLDER}</option>
                     {SPECIALIST_TREATMENT_TYPES.map(s => <option key={s} value={s}>{SPECIALIST_TREATMENT_LABEL_NB[s] || s}</option>)}
                   </select>
                 </td>
-                <td className="px-3 py-2">
+                {/* Utdanning */}
+                <td className="px-3 py-2 border-l-2 border-green-300">
                   {eduAllowed.length ? (
                     <select className="border border-gray-300 rounded-md px-2 py-1 w-full bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" value={p.education_need || ''} onChange={e => updatePerson(p.id, { education_need: e.target.value as EducationFacilityType || undefined })}>
                       <option value="">{PLACEHOLDER}</option>
