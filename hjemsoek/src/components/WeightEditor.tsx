@@ -1,4 +1,6 @@
 import React from 'react';
+import { ModalRoot } from '../calculator/ModalRoot';
+import type { CalculatorModule } from '../calculator/types';
 import { buildWeightConfiguration } from '../utils/weights';
 import { WEIGHT_TEMPLATES, getTemplateById } from '../scoringTemplates';
 import type {
@@ -109,6 +111,8 @@ function labelForSub(id: string): string {
 
 export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
   const { moduleWeights, onModuleWeightsChange } = props;
+  // Calculator modal state (one at a time)
+  const [openCalcModule, setOpenCalcModule] = React.useState<CalculatorModule | null>(null);
   const [showHelp, setShowHelp] = React.useState<boolean>(false);
   const [showJson, setShowJson] = React.useState<boolean>(false);
   // Table expansion (shows editable subweights rows inline)
@@ -541,6 +545,13 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
                       <div className="flex flex-col gap-1 relative">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              aria-label={`Prøv å teste hvordan vekting oppfører seg for ${MODULE_LABEL_NB[k] || k}`}
+                              title={`Prøv å teste hvordan vekting oppfører seg for ${MODULE_LABEL_NB[k] || k}.`}
+                              onClick={(e) => { e.stopPropagation(); setOpenCalcModule(k as CalculatorModule); }}
+                              className="text-[11px] px-1 py-0.5 rounded border border-blue-300 bg-white hover:bg-blue-100 text-blue-700 shadow-sm"
+                            >🧮</button>
                             <span>{MODULE_LABEL_NB[k] || k}</span>
                             <button
                               type="button"
@@ -723,6 +734,12 @@ export const WeightEditor: React.FC<WeightEditorProps> = (props) => {
           )}
         </div>
       </div>
+      {openCalcModule && (
+        <ModalRoot
+          initialModule={openCalcModule}
+          onClose={() => setOpenCalcModule(null)}
+        />
+      )}
     </div>
   );
 };
