@@ -37,6 +37,8 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
   const [showJson, setShowJson] = React.useState<boolean>(false); // hidden by default across platforms
   const [showDescription, setShowDescription] = React.useState<boolean>(false);
   const sideVisible = showJson || showDescription;
+  // Disclaimer banner text
+  const DISCLAIMER_TEXT = 'Dette er ett verktøy laget for å illustrere utfordringer knyttet til vekting, og alle datagrunnlag om kommuner, yrker, helsetilbud ol. er fiktive';
   // Fallback mock data if host app doesn't provide
   const muniData = React.useMemo(() => {
     const src = municipalities.length ? municipalities : createNorwayMunicipalities(50,1);
@@ -70,14 +72,23 @@ export const GroupEditor: React.FC<GroupEditorProps> = ({ value, onChange, munic
 
   if (!value.persons.length) {
     return (
-      <div className="p-4 border border-dashed border-gray-400 text-center rounded">
+      <div>
+        <div className="p-3 mb-3 rounded text-red-700 bg-red-50 border border-red-200">
+          <p style={{ fontSize: 24, lineHeight: 1.1, margin: 0, whiteSpace: 'normal', wordWrap: 'break-word' }}>{DISCLAIMER_TEXT}</p>
+        </div>
+        <div className="p-4 border border-dashed border-gray-400 text-center rounded">
         <button className="text-2xl px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded shadow" onClick={addPerson}>+ Opprett første person</button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="w-full">
+      {/* Disclaimer banner */}
+      <div className="p-3 mb-3 rounded text-red-700 bg-red-50 border border-red-200">
+        <p style={{ fontSize: 24, lineHeight: 1.1, margin: 0, whiteSpace: 'normal', wordWrap: 'break-word' }}>{DISCLAIMER_TEXT}</p>
+      </div>
       <div className="flex flex-col md:flex-row w-full">
         <div className={`overflow-x-auto rounded-xl shadow ring-1 ring-green-200 bg-white transition-all duration-300 flex-1 ${sideVisible ? 'md:mr-4' : ''}`}>  
         <div className="flex items-center justify-between px-4 py-2 border-b border-green-100 bg-green-50 rounded-t-xl gap-2">

@@ -176,6 +176,7 @@ import MunicipalityInspectModal from './MunicipalityInspectModal.tsx';
 
 export const MunicipalityScoreTable: React.FC<MunicipalityScoreTableProps> = (props) => {
   const { group, municipalities, moduleWeights } = props;
+  const DISCLAIMER_TEXT = 'Dette er ett verktøy laget for å illustrere utfordringer knyttet til vekting, og alle datagrunnlag om kommuner, yrker, helsetilbud ol. er fiktive';
 
   // Precomputed maps (stable unless municipalities array identity changes)
   const adjacencyMap = React.useMemo(() => buildAdjacency(municipalities), [municipalities]);
@@ -318,6 +319,9 @@ export const MunicipalityScoreTable: React.FC<MunicipalityScoreTableProps> = (pr
 
   return (
     <div className="mt-10">
+      <div className="p-3 mb-3 rounded text-red-700 bg-red-50 border border-red-200">
+        <p style={{ fontSize: 24, lineHeight: 1.1, margin: 0, whiteSpace: 'normal', wordWrap: 'break-word' }}>{DISCLAIMER_TEXT}</p>
+      </div>
       <h2 className="text-xl font-semibold mb-3 text-gray-700">Kommuner (rangert)</h2>
       <div className="overflow-x-auto rounded-xl shadow ring-1 ring-gray-200 bg-white">
         <table className="min-w-full text-sm">
