@@ -5,7 +5,18 @@ import WeightEditor from './components/WeightEditor';
 import MunicipalityScoreTable from './components/MunicipalityScoreTable';
 import { createNorwayMunicipalities, regions, professions } from './mockdata';
 
-function App() {
+type PageId = 'legacy' | 'radial';
+
+const pages: { id: PageId; label: string; href: string }[] = [
+  { id: 'legacy', label: 'Legacy', href: '#/legacy' },
+  { id: 'radial', label: 'Radial menu concept', href: '#/radial-menu-concept' },
+];
+
+function getPageFromHash(): PageId {
+  return window.location.hash === '#/radial-menu-concept' ? 'radial' : 'legacy';
+}
+
+function LegacyPage() {
   const [group, setGroup] = React.useState<Group>({ persons: [], size: 0 });
   const municipalities = React.useMemo(() => createNorwayMunicipalities(50,1), []);
 
@@ -94,6 +105,56 @@ function App() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function RadialMenuConceptPage() {
+  return (
+    <iframe
+      title="Radial menu concept"
+      src="/radial-menu-concept.html"
+      allow="pointer-lock"
+      className="block h-[calc(100vh-57px)] w-full border-0"
+    />
+  );
+}
+
+function App() {
+  const [activePage, setActivePage] = React.useState<PageId>(getPageFromHash);
+
+  React.useEffect(() => {
+    const handleHashChange = () => setActivePage(getPageFromHash());
+    window.addEventListener('hashchange', handleHashChange);
+    handleHashChange();
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-white text-gray-900">
+      <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-screen-2xl items-center gap-2 px-4 py-3 sm:px-6">
+          {pages.map((page) => {
+            const isActive = page.id === activePage;
+            return (
+              <a
+                key={page.id}
+                href={page.href}
+                aria-current={isActive ? 'page' : undefined}
+                className={[
+                  'rounded-md px-3 py-2 text-sm font-medium transition',
+                  isActive
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+                ].join(' ')}
+              >
+                {page.label}
+              </a>
+            );
+          })}
+        </div>
+      </nav>
+      {activePage === 'radial' ? <RadialMenuConceptPage /> : <LegacyPage />}
     </div>
   );
 }

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Siege Radial Shot Prep Demo</title>
+    <link rel="stylesheet" href="./radial-menu-concept.css" />
+  </head>
+  <body>
+    <div id="three"></div>
+    <div class="shade"></div>
+    <main class="panel">
+      <h1>Siege Unit Radial Demo</h1>
+      <p>3D radial shot preparation with fixed path lifetime.</p>
+      <div class="buttons">
+        <button id="start" class="btn">Start</button>
+        <button
+          id="arm"
+          class="btn"
+          title="Hold middle mouse button in game to prepare shot, release to complete preparation."
+        >
+          Arm
+        </button>
+        <button id="fire" class="btn fire">Fire</button>
+        <button id="cancel" class="btn cancel">Cancel</button>
+      </div>
+      <section class="box">
+        <div class="row">
+          <span>Path lifetime budget</span
+          ><span id="progressText">0.0s / 4.0s</span>
+        </div>
+        <div class="bar" id="lifeBar">
+          <div class="fill" id="lifeFill"></div>
+        </div>
+        <div class="ticks">
+          <span>0s</span><span>1s</span><span>2s</span><span>3s</span
+          ><span>4s</span>
+        </div>
+        <div class="slider-block">
+          <div class="row">
+            <span>Turn influence</span><span id="influenceText">15%</span>
+          </div>
+          <input
+            id="influence"
+            type="range"
+            min="1"
+            max="30"
+            step="1"
+            value="15"
+          />
+          <div class="ticks">
+            <span>1%</span><span>15%</span><span>30%</span>
+          </div>
+        </div>
+        <div class="slider-block">
+          <div class="row">
+            <span>Planning slowdown</span
+            ><span id="slowText">1.00x fill speed</span>
+          </div>
+          <input
+            id="slow"
+            type="range"
+            min="0.25"
+            max="1"
+            step="0.25"
+            value="1"
+          />
+          <div class="ticks">
+            <span>0.25x</span><span>0.5x</span><span>0.75x</span><span>1x</span>
+          </div>
+          <div class="small" id="windowText">
+            Real-time planning window: 4.0s
+          </div>
+        </div>
+        <div class="toggles">
+          <label class="toggle"
+            ><span
+              >Auto-shoot at end of preparation phase<br /><span class="small"
+                >ON = complete preparation and fire automatically</span
+              ></span
+            ><input id="auto" type="checkbox"
+          /></label>
+          <label class="toggle"
+            ><span
+              >Infinite mana<br /><span class="small"
+                >ON = firing is always available</span
+              ></span
+            ><input id="infiniteMana" type="checkbox"
+          /></label>
+          <label class="toggle"
+            ><span
+              >Hide preview shot path<br /><span class="small"
+                >ON = hide trajectory while radial is open</span
+              ></span
+            ><input id="hidePreview" type="checkbox"
+          /></label>
+          <label class="toggle"
+            ><span>Single Turn Only</span><input id="single" type="checkbox"
+          /></label>
+          <label class="toggle"
+            ><span
+              >Compound Sequential Turns<br /><span class="small"
+                >OFF = all turns use original trajectory</span
+              ></span
+            ><input id="compound" type="checkbox" checked
+          /></label>
+        </div>
+      </section>
+      <div id="message" class="message">
+        Plan a path while mana recharges. The path lifetime remains fixed at 4
+        seconds.
+      </div>
+    </main>
+    <aside class="rules">
+      <h2>Implementation Rules</h2>
+      <ul>
+        <li>Mana gates firing only; planning is free.</li>
+        <li>The path lifetime budget is fixed at 4 seconds.</li>
+        <li>Turns map inside that fixed lifetime; they do not extend it.</li>
+        <li>Towers kill the projectile on contact.</li>
+        <li>Single-turn mode can restrict shots to one radial input.</li>
+        <li>
+          Sequential turns can compound or stay relative to the original
+          trajectory.
+        </li>
+      </ul>
+    </aside>
+    <div class="radial-wrap">
+      <div id="radialProgress" class="radial-progress" aria-hidden="true"></div>
+      <div
+        id="radialMarkers"
+        class="radial-progress-markers"
+        aria-hidden="true"
+      ></div>
+      <div id="radial" class="radial">
+        <div class="inner"></div>
+        <div id="radialCursor" class="radial-cursor"></div>
+        <div class="center">✦</div>
+        <div class="radial-note" id="radialNote">Press Start Planning.</div>
+      </div>
+    </div>
+    <div class="move">
+      <button id="left">←<span class="key">A</span></button
+      ><button id="right">→<span class="key">D</span></button>
+    </div>
+    <div id="centerNotice" class="center-notice" aria-live="polite"></div>
+    <div class="mana-hud">
+      <div class="row"><span>Mana</span><span id="manaText">35%</span></div>
+      <div class="bar mana"><div class="fill" id="manaFill"></div></div>
+    </div>
+    <script type="module" src="./radial-menu-concept.js"></script>
+  </body>
+</html>
