@@ -14,12 +14,52 @@
         <h1>RTS</h1>
         <div class="menu-actions">
           <button id="enterCamera" type="button">Enter Camera mode</button>
-          <button id="enterCommander" type="button">
-            Enter commander mode (RTS)
-          </button>
+          <button id="enterCommander" type="button">Enter RTS mode</button>
         </div>
       </section>
     </div>
+    <div id="resourceHud" class="rts-ui resource-hud" aria-label="Resources" hidden>
+      <span class="resource-item">💰 Money <strong id="moneyValue">500</strong></span>
+      <span class="resource-item">💎 Crystals <strong id="crystalsValue">100</strong></span>
+      <span class="resource-item">👷🏻 Workers <strong id="workersValue">0 / 10</strong></span>
+    </div>
+    <section
+      id="commandPanel"
+      class="rts-ui command-panel"
+      aria-label="Stronghold commands"
+      hidden
+    >
+      <div class="panel-heading">Stronghold</div>
+      <div class="command-grid">
+        <button id="trainWorker" class="command-cell command-worker" type="button">
+          <span class="command-icon">👷🏻</span>
+          <span class="command-label">Worker</span>
+        </button>
+        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
+        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
+        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
+        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
+        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
+        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
+        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
+        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
+      </div>
+    </section>
+    <section
+      id="queuePanel"
+      class="rts-ui queue-panel"
+      aria-label="Production queue"
+      hidden
+    >
+      <div class="queue-heading">
+        <span>Production queue</span>
+        <strong id="queueCount">0 / 10</strong>
+      </div>
+      <div id="queueSlots" class="queue-slots" aria-hidden="true"></div>
+      <div class="queue-progress" aria-hidden="true">
+        <div id="queueProgressFill" class="queue-progress-fill"></div>
+      </div>
+    </section>
     <script type="module" src="./rts.js"></script>
   </body>
 </html>

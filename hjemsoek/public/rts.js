@@ -2,12 +2,21 @@ import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
 
 const $ = (id) => document.getElementById(id);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const easeOutCubic = (value) => 1 - Math.pow(1 - clamp(value, 0, 1), 3);
+
+const WORKER_BUILD_TIME = 5;
+const MAX_WORKERS = 10;
+const RTS_MIN_ZOOM = 16;
+const RTS_DEFAULT_ZOOM = 30;
+const RTS_MAX_ZOOM = 48;
+const RTS_VIEW_OFFSET = new THREE.Vector3(0, 0.84, 0.54).normalize();
 
 const state = {
   mode: "menu",
   pointerLocked: false,
   yaw: 0,
   pitch: 0,
+  selected: null,
 };
 
 const savedFlyPose = {
@@ -20,6 +29,42 @@ const savedFlyPose = {
 const keys = new Set();
 const menu = $("menu");
 const reticle = $("reticle");
+const resourceHud = $("resourceHud");
+const commandPanel = $("commandPanel");
+const queuePanel = $("queuePanel");
+const trainWorkerButton = $("trainWorker");
+const moneyValue = $("moneyValue");
+const crystalsValue = $("crystalsValue");
+const workersValue = $("workersValue");
+const queueCount = $("queueCount");
+const queueSlots = $("queueSlots");
+const queueProgressFill = $("queueProgressFill");
+const queueSlotElements = [];
+
+for (let i = 0; i < MAX_WORKERS; i++) {
+  const slot = document.createElement("div");
+  slot.className = "queue-slot";
+  queueSlots.appendChild(slot);
+  queueSlotElements.push(slot);
+}
+
+const economy = {
+  money: 500,
+  crystals: 100,
+  workers: 0,
+  queue: [],
+  progress: 0,
+};
+
+const rtsCamera = {
+  target: new THREE.Vector3(0, 0, 0),
+  zoom: RTS_DEFAULT_ZOOM,
+  transition: null,
+  drag: {
+    active: false,
+    anchor: new THREE.Vector3(),
+  },
+};
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9ec3d8);
@@ -245,6 +290,23 @@ const focusMesh = new THREE.Mesh(
 focusMesh.position.y = 2.35;
 stronghold.add(focusMesh);
 
+focusMesh.userData.selectable = "stronghold";
+
+const selectionRing = new THREE.Mesh(
+  new THREE.RingGeometry(3.55, 3.85, 72),
+  new THREE.MeshBasicMaterial({
+    color: 0xf7d984,
+    transparent: true,
+    opacity: 0.86,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  }),
+);
+selectionRing.rotation.x = -Math.PI / 2;
+selectionRing.position.y = 0.055;
+selectionRing.visible = false;
+scene.add(selectionRing);
+
 function makeLabelSprite() {
   const canvas = document.createElement("canvas");
   canvas.width = 512;
@@ -288,6 +350,253 @@ strongholdLabel.visible = false;
 scene.add(strongholdLabel);
 
 const raycaster = new THREE.Raycaster();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+function isUiTarget(target) {
+  return (
+    target instanceof Element &&
+    target.closest(
+      "button,input,label,select,textarea,.menu,.resource-hud,.command-panel,.queue-panel",
+    )
+  );
+}
+
+function pointerToNdc(clientX, clientY) {
+  return {
+    x: (clientX / window.innerWidth) * 2 - 1,
+    y: -(clientY / window.innerHeight) * 2 + 1,
+  };
+}
+
+function raycastGround(clientX, clientY, out = new THREE.Vector3()) {
+  raycaster.setFromCamera(pointerToNdc(clientX, clientY), camera);
+  return raycaster.ray.intersectPlane(groundPlane, out);
+}
+
+function computeRtsCameraPosition(target = rtsCamera.target, zoom = rtsCamera.zoom) {
+  return target.clone().addScaledVector(RTS_VIEW_OFFSET, zoom);
+}
+
+function applyRtsCameraPose() {
+  camera.position.copy(computeRtsCameraPosition());
+  camera.lookAt(rtsCamera.target);
+}
+
+function beginRtsCameraTransition() {
+  const target = new THREE.Vector3(0, 0, 0);
+  const zoom = RTS_DEFAULT_ZOOM;
+  const finalPosition = computeRtsCameraPosition(target, zoom);
+  const finalPose = new THREE.Object3D();
+
+  finalPose.position.copy(finalPosition);
+  finalPose.lookAt(target);
+
+  rtsCamera.target.copy(target);
+  rtsCamera.zoom = zoom;
+  rtsCamera.transition = {
+    elapsed: 0,
+    duration: 0.85,
+    startPosition: camera.position.clone(),
+    startQuaternion: camera.quaternion.clone(),
+    finalPosition,
+    finalQuaternion: finalPose.quaternion.clone(),
+  };
+}
+
+function updateRtsCamera(dt) {
+  if (state.mode !== "commander") return;
+
+  const transition = rtsCamera.transition;
+  if (transition) {
+    transition.elapsed += dt;
+    const amount = easeOutCubic(transition.elapsed / transition.duration);
+    camera.position.lerpVectors(
+      transition.startPosition,
+      transition.finalPosition,
+      amount,
+    );
+    camera.quaternion.slerpQuaternions(
+      transition.startQuaternion,
+      transition.finalQuaternion,
+      amount,
+    );
+    if (amount >= 1) {
+      rtsCamera.transition = null;
+      applyRtsCameraPose();
+    }
+    return;
+  }
+
+  const movement = new THREE.Vector3();
+  const forward = new THREE.Vector3(0, 0, -1);
+  const right = new THREE.Vector3(1, 0, 0);
+
+  if (keys.has("KeyW")) movement.add(forward);
+  if (keys.has("KeyS")) movement.sub(forward);
+  if (keys.has("KeyD")) movement.add(right);
+  if (keys.has("KeyA")) movement.sub(right);
+
+  if (movement.lengthSq() > 0) {
+    movement.normalize();
+    rtsCamera.target.addScaledVector(movement, 18 * dt);
+    rtsCamera.target.x = clamp(rtsCamera.target.x, -46, 46);
+    rtsCamera.target.z = clamp(rtsCamera.target.z, -46, 46);
+  }
+
+  applyRtsCameraPose();
+}
+
+function clearSelection() {
+  state.selected = null;
+  selectionRing.visible = false;
+  updateRtsUi();
+}
+
+function selectStronghold() {
+  state.selected = "stronghold";
+  selectionRing.visible = true;
+  updateRtsUi();
+}
+
+function selectFromPointer(clientX, clientY) {
+  raycaster.setFromCamera(pointerToNdc(clientX, clientY), camera);
+  const hits = raycaster.intersectObject(focusMesh, false);
+
+  if (hits.length > 0) {
+    selectStronghold();
+    return;
+  }
+
+  clearSelection();
+}
+
+function canQueueWorker() {
+  return economy.workers + economy.queue.length < MAX_WORKERS;
+}
+
+function enqueueWorker() {
+  if (state.selected !== "stronghold" || !canQueueWorker()) return;
+  economy.queue.push({ type: "worker" });
+  updateRtsUi();
+}
+
+function makeWorkerUnit(index) {
+  const worker = new THREE.Group();
+  const shirtMaterial = new THREE.MeshStandardMaterial({
+    color: 0x315f7c,
+    roughness: 0.72,
+  });
+  const skinMaterial = new THREE.MeshStandardMaterial({
+    color: 0xd7a46d,
+    roughness: 0.68,
+  });
+  const helmetMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf1c84b,
+    roughness: 0.62,
+  });
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.82, 10), shirtMaterial);
+  body.position.y = 0.48;
+  body.castShadow = true;
+  worker.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), skinMaterial);
+  head.position.y = 1.04;
+  head.castShadow = true;
+  worker.add(head);
+
+  const helmet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    helmetMaterial,
+  );
+  helmet.position.y = 1.12;
+  helmet.castShadow = true;
+  worker.add(helmet);
+
+  const column = (index % 5) - 2;
+  const row = Math.floor(index / 5);
+  worker.position.set(column * 0.78, 0, 5.35 + row * 0.82);
+  worker.rotation.y = Math.PI;
+  scene.add(worker);
+}
+
+function updateProduction(dt) {
+  if (economy.queue.length === 0) {
+    economy.progress = 0;
+    updateRtsUi();
+    return;
+  }
+
+  economy.progress += dt;
+
+  while (economy.queue.length > 0 && economy.progress >= WORKER_BUILD_TIME) {
+    economy.progress -= WORKER_BUILD_TIME;
+    economy.queue.shift();
+    if (economy.workers < MAX_WORKERS) {
+      makeWorkerUnit(economy.workers);
+      economy.workers += 1;
+    }
+  }
+
+  if (economy.queue.length === 0) economy.progress = 0;
+  updateRtsUi();
+}
+
+function updateRtsUi() {
+  resourceHud.hidden = state.mode !== "commander";
+  commandPanel.hidden = state.mode !== "commander" || state.selected !== "stronghold";
+  queuePanel.hidden =
+    state.mode !== "commander" ||
+    state.selected !== "stronghold" ||
+    economy.queue.length === 0;
+
+  moneyValue.textContent = String(economy.money);
+  crystalsValue.textContent = String(economy.crystals);
+  workersValue.textContent = `${economy.workers} / ${MAX_WORKERS}`;
+  queueCount.textContent = `${economy.queue.length} / ${MAX_WORKERS}`;
+
+  trainWorkerButton.disabled = !canQueueWorker();
+  trainWorkerButton.title = canQueueWorker()
+    ? "Queue Worker"
+    : "Worker capacity is full";
+
+  queueSlotElements.forEach((slot, index) => {
+    const hasItem = index < economy.queue.length;
+    slot.textContent = hasItem ? "👷🏻" : "";
+    slot.classList.toggle("is-active", index === 0 && hasItem);
+  });
+
+  const progress =
+    economy.queue.length > 0 ? clamp(economy.progress / WORKER_BUILD_TIME, 0, 1) : 0;
+  queueProgressFill.style.width = `${progress * 100}%`;
+}
+
+function beginRtsPan(event) {
+  const anchor = raycastGround(event.clientX, event.clientY);
+  if (!anchor) return;
+
+  event.preventDefault();
+  rtsCamera.transition = null;
+  rtsCamera.drag.active = true;
+  rtsCamera.drag.anchor.copy(anchor);
+}
+
+function updateRtsPan(event) {
+  if (!rtsCamera.drag.active) return;
+
+  const currentHit = raycastGround(event.clientX, event.clientY);
+  if (!currentHit) return;
+
+  const delta = rtsCamera.drag.anchor.clone().sub(currentHit);
+  rtsCamera.target.add(delta);
+  rtsCamera.target.x = clamp(rtsCamera.target.x, -46, 46);
+  rtsCamera.target.z = clamp(rtsCamera.target.z, -46, 46);
+  applyRtsCameraPose();
+}
+
+function endRtsPan() {
+  rtsCamera.drag.active = false;
+}
 
 function applyCameraRotation() {
   camera.rotation.set(state.pitch, state.yaw, 0, "YXZ");
@@ -334,8 +643,16 @@ function setMode(mode) {
 
   if (mode === "commander") {
     keys.clear();
-    setCameraPose(new THREE.Vector3(18, 28, 18), new THREE.Vector3(0, 0, 0));
+    clearSelection();
+    endRtsPan();
+    beginRtsCameraTransition();
+  } else {
+    endRtsPan();
+    rtsCamera.transition = null;
+    clearSelection();
   }
+
+  updateRtsUi();
 }
 
 function enterCameraMode() {
@@ -359,6 +676,7 @@ function enterCommanderMode() {
 
 $("enterCamera").addEventListener("click", enterCameraMode);
 $("enterCommander").addEventListener("click", enterCommanderMode);
+trainWorkerButton.addEventListener("click", enqueueWorker);
 
 document.addEventListener("pointerlockchange", () => {
   state.pointerLocked = document.pointerLockElement === renderer.domElement;
@@ -374,6 +692,11 @@ document.addEventListener("pointerlockchange", () => {
 });
 
 document.addEventListener("mousemove", (event) => {
+  if (state.mode === "commander") {
+    updateRtsPan(event);
+    return;
+  }
+
   if (state.mode !== "camera" || !state.pointerLocked) return;
 
   state.yaw -= event.movementX * 0.0022;
@@ -388,6 +711,20 @@ document.addEventListener("mousemove", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.code === "Escape" && state.mode === "commander") {
     setMode("menu");
+    return;
+  }
+
+  if (state.mode === "commander") {
+    if (
+      event.code === "KeyW" ||
+      event.code === "KeyA" ||
+      event.code === "KeyS" ||
+      event.code === "KeyD"
+    ) {
+      event.preventDefault();
+      rtsCamera.transition = null;
+      keys.add(event.code);
+    }
     return;
   }
 
@@ -413,7 +750,47 @@ document.addEventListener("keyup", (event) => {
 
 window.addEventListener("blur", () => {
   keys.clear();
+  endRtsPan();
 });
+
+document.addEventListener("mousedown", (event) => {
+  if (state.mode !== "commander" || isUiTarget(event.target)) return;
+
+  if (event.button === 1) {
+    beginRtsPan(event);
+    return;
+  }
+
+  if (event.button === 0) {
+    event.preventDefault();
+    selectFromPointer(event.clientX, event.clientY);
+  }
+});
+
+document.addEventListener("mouseup", (event) => {
+  if (event.button === 1) endRtsPan();
+});
+
+document.addEventListener("auxclick", (event) => {
+  if (event.button === 1) event.preventDefault();
+});
+
+document.addEventListener(
+  "wheel",
+  (event) => {
+    if (state.mode !== "commander" || isUiTarget(event.target)) return;
+
+    event.preventDefault();
+    rtsCamera.transition = null;
+    rtsCamera.zoom = clamp(
+      rtsCamera.zoom + event.deltaY * 0.018,
+      RTS_MIN_ZOOM,
+      RTS_MAX_ZOOM,
+    );
+    applyRtsCameraPose();
+  },
+  { passive: false },
+);
 
 function updateFlyCamera(dt) {
   if (state.mode !== "camera" || !state.pointerLocked) return;
@@ -443,6 +820,16 @@ function updateFlyCamera(dt) {
 }
 
 function updateStrongholdLabel() {
+  if (state.mode === "commander") {
+    strongholdLabel.visible = state.selected === "stronghold";
+    return;
+  }
+
+  if (state.mode !== "camera") {
+    strongholdLabel.visible = false;
+    return;
+  }
+
   raycaster.setFromCamera({ x: 0, y: 0 }, camera);
   const focused = raycaster.intersectObject(focusMesh, false).length > 0;
   strongholdLabel.visible = focused;
@@ -466,6 +853,8 @@ function loop() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   updateFlyCamera(dt);
+  updateRtsCamera(dt);
+  updateProduction(dt);
   updateStrongholdLabel();
   renderer.render(scene, camera);
 }
