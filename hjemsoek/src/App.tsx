@@ -5,15 +5,18 @@ import WeightEditor from './components/WeightEditor';
 import MunicipalityScoreTable from './components/MunicipalityScoreTable';
 import { createNorwayMunicipalities, regions, professions } from './mockdata';
 
-type PageId = 'legacy' | 'radial';
+type PageId = 'legacy' | 'radial' | 'rts';
 
 const pages: { id: PageId; label: string; href: string }[] = [
   { id: 'legacy', label: 'Legacy', href: '#/legacy' },
   { id: 'radial', label: 'Radial menu concept', href: '#/radial-menu-concept' },
+  { id: 'rts', label: 'RTS', href: '#/rts' },
 ];
 
 function getPageFromHash(): PageId {
-  return window.location.hash === '#/radial-menu-concept' ? 'radial' : 'legacy';
+  if (window.location.hash === '#/radial-menu-concept') return 'radial';
+  if (window.location.hash === '#/rts') return 'rts';
+  return 'legacy';
 }
 
 function LegacyPage() {
@@ -120,6 +123,17 @@ function RadialMenuConceptPage() {
   );
 }
 
+function RtsPage() {
+  return (
+    <iframe
+      title="RTS"
+      src="/rts.html"
+      allow="pointer-lock"
+      className="block h-[calc(100vh-57px)] w-full border-0"
+    />
+  );
+}
+
 function App() {
   const [activePage, setActivePage] = React.useState<PageId>(getPageFromHash);
 
@@ -154,7 +168,13 @@ function App() {
           })}
         </div>
       </nav>
-      {activePage === 'radial' ? <RadialMenuConceptPage /> : <LegacyPage />}
+      {activePage === 'radial' ? (
+        <RadialMenuConceptPage />
+      ) : activePage === 'rts' ? (
+        <RtsPage />
+      ) : (
+        <LegacyPage />
+      )}
     </div>
   );
 }

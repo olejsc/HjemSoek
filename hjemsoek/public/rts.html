@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RTS Stronghold Prototype</title>
+    <link rel="stylesheet" href="./rts.css" />
+  </head>
+  <body>
+    <div id="three"></div>
+    <div id="reticle" class="reticle" aria-hidden="true"></div>
+    <div id="menu" class="menu is-visible">
+      <section class="menu-panel" aria-label="RTS menu">
+        <h1>RTS</h1>
+        <div class="menu-actions">
+          <button id="enterCamera" type="button">Enter Camera mode</button>
+          <button id="enterCommander" type="button">
+            Enter commander mode (RTS)
+          </button>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="./rts.js"></script>
+  </body>
+</html>
