@@ -19,31 +19,19 @@
       </section>
     </div>
     <div id="resourceHud" class="rts-ui resource-hud" aria-label="Resources" hidden>
-      <span class="resource-item">💰 Money <strong id="moneyValue">500</strong></span>
-      <span class="resource-item">💎 Crystals <strong id="crystalsValue">100</strong></span>
+      <span class="resource-item">💰 Money <strong id="moneyValue">10000</strong></span>
+      <span class="resource-item">💎 Crystals <strong id="crystalsValue">2000</strong></span>
       <span class="resource-item">👷🏻 Workers <strong id="workersValue">0 / 10</strong></span>
     </div>
     <section
       id="commandPanel"
       class="rts-ui command-panel"
-      aria-label="Stronghold commands"
+      aria-label="Selected unit commands"
       hidden
     >
-      <div class="panel-heading">Stronghold</div>
-      <div class="command-grid">
-        <button id="trainWorker" class="command-cell command-worker" type="button">
-          <span class="command-icon">👷🏻</span>
-          <span class="command-label">Worker</span>
-        </button>
-        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
-        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
-        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
-        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
-        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
-        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
-        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
-        <button class="command-cell is-empty" type="button" disabled aria-label="Empty slot"></button>
-      </div>
+      <div id="commandTitle" class="panel-heading">Selection</div>
+      <div id="commandStatus" class="command-status"></div>
+      <div id="commandGrid" class="command-grid" aria-label="Command grid"></div>
     </section>
     <section
       id="queuePanel"
@@ -60,6 +48,7 @@
         <div id="queueProgressFill" class="queue-progress-fill"></div>
       </div>
     </section>
+    <div id="selectionBox" class="selection-box" hidden></div>
     <script type="module" src="./rts.js"></script>
   </body>
 </html>

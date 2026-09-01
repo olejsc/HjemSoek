@@ -5,17 +5,23 @@ import WeightEditor from './components/WeightEditor';
 import MunicipalityScoreTable from './components/MunicipalityScoreTable';
 import { createNorwayMunicipalities, regions, professions } from './mockdata';
 
-type PageId = 'legacy' | 'radial' | 'rts';
+type PageId = 'legacy' | 'radial' | 'rts' | 'packet-builder';
 
 const pages: { id: PageId; label: string; href: string }[] = [
   { id: 'legacy', label: 'Legacy', href: '#/legacy' },
   { id: 'radial', label: 'Radial menu concept', href: '#/radial-menu-concept' },
   { id: 'rts', label: 'RTS', href: '#/rts' },
+  {
+    id: 'packet-builder',
+    label: 'Packet builder and simulator',
+    href: '#/packet-builder-and-simulator',
+  },
 ];
 
 function getPageFromHash(): PageId {
   if (window.location.hash === '#/radial-menu-concept') return 'radial';
   if (window.location.hash === '#/rts') return 'rts';
+  if (window.location.hash === '#/packet-builder-and-simulator') return 'packet-builder';
   return 'legacy';
 }
 
@@ -116,9 +122,9 @@ function RadialMenuConceptPage() {
   return (
     <iframe
       title="Radial menu concept"
-      src="/radial-menu-concept.html"
+      src={`${import.meta.env.BASE_URL}radial-menu-concept.html`}
       allow="pointer-lock"
-      className="block h-[calc(100vh-57px)] w-full border-0"
+      className="block min-h-0 w-full flex-1 border-0"
     />
   );
 }
@@ -127,15 +133,26 @@ function RtsPage() {
   return (
     <iframe
       title="RTS"
-      src="/rts.html"
+      src={`${import.meta.env.BASE_URL}rts.html`}
       allow="pointer-lock"
-      className="block h-[calc(100vh-57px)] w-full border-0"
+      className="block min-h-0 w-full flex-1 border-0"
+    />
+  );
+}
+
+function PacketBuilderAndSimulatorPage() {
+  return (
+    <iframe
+      title="Packet builder and simulator"
+      src={`${import.meta.env.BASE_URL}packet-builder-and-simulator.html`}
+      className="block min-h-0 w-full flex-1 border-0"
     />
   );
 }
 
 function App() {
   const [activePage, setActivePage] = React.useState<PageId>(getPageFromHash);
+  const isEmbeddedPage = activePage !== 'legacy';
 
   React.useEffect(() => {
     const handleHashChange = () => setActivePage(getPageFromHash());
@@ -145,9 +162,9 @@ function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white text-gray-900">
-      <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-screen-2xl items-center gap-2 px-4 py-3 sm:px-6">
+    <div className={`${isEmbeddedPage ? 'flex h-screen flex-col' : 'min-h-screen'} bg-white text-gray-900`}>
+      <nav className="sticky top-0 z-50 shrink-0 border-b border-gray-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-screen-2xl items-center gap-2 overflow-x-auto px-4 py-3 sm:px-6">
           {pages.map((page) => {
             const isActive = page.id === activePage;
             return (
@@ -156,7 +173,7 @@ function App() {
                 href={page.href}
                 aria-current={isActive ? 'page' : undefined}
                 className={[
-                  'rounded-md px-3 py-2 text-sm font-medium transition',
+                  'shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition',
                   isActive
                     ? 'bg-gray-900 text-white'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
@@ -172,6 +189,8 @@ function App() {
         <RadialMenuConceptPage />
       ) : activePage === 'rts' ? (
         <RtsPage />
+      ) : activePage === 'packet-builder' ? (
+        <PacketBuilderAndSimulatorPage />
       ) : (
         <LegacyPage />
       )}

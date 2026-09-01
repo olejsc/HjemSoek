@@ -195,7 +195,7 @@ body.mode-camera .reticle {
 .command-panel {
   right: 18px;
   bottom: 18px;
-  width: min(300px, calc(100vw - 36px));
+  width: min(324px, calc(100vw - 36px));
   padding: 12px;
   border: 1px solid rgba(232, 220, 188, 0.24);
   border-radius: 8px;
@@ -217,6 +217,15 @@ body.mode-camera .reticle {
   text-transform: uppercase;
 }
 
+.command-status {
+  min-height: 34px;
+  margin: -3px 0 10px;
+  color: #d7e7bd;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
 .command-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -230,7 +239,8 @@ body.mode-camera .reticle {
   place-items: center;
   align-content: center;
   gap: 5px;
-  padding: 6px;
+  min-width: 0;
+  padding: 6px 5px;
   border: 1px solid rgba(247, 217, 132, 0.22);
   border-radius: 6px;
   background: rgba(26, 38, 28, 0.86);
@@ -250,6 +260,11 @@ body.mode-camera .reticle {
   opacity: 0.44;
 }
 
+.command-cell.is-locked {
+  border-color: rgba(239, 122, 102, 0.28);
+  background: rgba(42, 25, 22, 0.82);
+}
+
 .command-cell.is-empty {
   background:
     linear-gradient(135deg, transparent 48%, rgba(232, 220, 188, 0.12) 49%, rgba(232, 220, 188, 0.12) 51%, transparent 52%),
@@ -265,6 +280,16 @@ body.mode-camera .reticle {
   font-size: 12px;
   font-weight: 800;
   line-height: 1.1;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.command-cost {
+  color: #d7e7bd;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
 }
 
 .queue-panel {
@@ -317,6 +342,17 @@ body.mode-camera .reticle {
   border-radius: inherit;
   background: linear-gradient(90deg, #d7e7bd, #f7d984);
   transition: width 0.08s linear;
+}
+
+.selection-box {
+  pointer-events: none;
+  position: fixed;
+  z-index: 7;
+  border: 1px solid rgba(246, 218, 147, 0.92);
+  background: rgba(247, 217, 132, 0.13);
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.35),
+    0 0 16px rgba(247, 217, 132, 0.16);
 }
 
 @media (max-width: 560px) {
